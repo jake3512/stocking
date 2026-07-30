@@ -48,46 +48,54 @@
 
   <nav class="tabs">
     <button class="tab-btn active" data-tab="market">시장</button>
-    <button class="tab-btn" data-tab="portfolio">내 보유종목</button>
-    <button class="tab-btn" data-tab="news">뉴스</button>
     <button class="tab-btn" data-tab="rank">랭킹</button>
   </nav>
 
   <main class="content">
 
     <section id="tab-market" class="tab-panel active">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>종목명</th>
-            <th>현재가</th>
-            <th>상장주식수</th>
-            <th>시가총액</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody id="market-body"></tbody>
-      </table>
-    </section>
+      <div class="dashboard">
+        <div class="dashboard-main">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>종목명</th>
+                <th>현재가</th>
+                <th>상장주식수</th>
+                <th>시가총액</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="market-body"></tbody>
+          </table>
+        </div>
 
-    <section id="tab-portfolio" class="tab-panel">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>종목명</th>
-            <th>수량</th>
-            <th>평단가</th>
-            <th>현재가</th>
-            <th>평가금액</th>
-            <th>수익률</th>
-          </tr>
-        </thead>
-        <tbody id="portfolio-body"></tbody>
-      </table>
-    </section>
+        <aside class="dashboard-side">
+          <div class="side-panel">
+            <h3 class="side-title">내 보유종목</h3>
+            <div class="side-scroll">
+              <table class="data-table compact">
+                <thead>
+                  <tr>
+                    <th>종목</th>
+                    <th>수량</th>
+                    <th>평단가</th>
+                    <th>수익률</th>
+                  </tr>
+                </thead>
+                <tbody id="portfolio-body"></tbody>
+              </table>
+            </div>
+          </div>
 
-    <section id="tab-news" class="tab-panel">
-      <ul id="news-list" class="news-list"></ul>
+          <div class="side-panel">
+            <h3 class="side-title">뉴스 기록</h3>
+            <div class="side-scroll">
+              <ul id="news-list" class="news-list"></ul>
+            </div>
+          </div>
+        </aside>
+      </div>
     </section>
 
     <section id="tab-rank" class="tab-panel">
