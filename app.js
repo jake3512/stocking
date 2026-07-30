@@ -180,8 +180,32 @@ async function seedMarketIfNeeded() {
     lastCompanyEvent: 0,
     lastSectorEvent: 0,
     lastGlobalCheck: 0,
-    globalCooldownUntil: 0
+    globalCooldownUntil: 0,
+    tradingDate: todayStrKST()
   });
+  const dayOpen = {};
+  for (const id in stocks) dayOpen[id] = stocks[id].price;
+  await db.ref("market/dayOpen").set(dayOpen);
+}
+
+// ---------- 당일 시가(증감률 기준) 관리 ----------
+function todayStrKST() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" }).format(new Date());
+}
+
+// 날짜가 바뀌면(장 시작 시점) 그날의 시가를 새로 스냅샷 (여러 브라우저 중 하나만 실행)
+async function ensureTradingDay() {
+  const today = todayStrKST();
+  const res = await db.ref("market/meta/tradingDate").transaction(current => {
+    if (current === today) return; // 이미 오늘 날짜로 세팅됨 -> 중단
+    return today;
+  });
+  if (!res.committed) return;
+  const snap = await db.ref("market/stocks").once("value");
+  const stocks = snap.val() || {};
+  const dayOpen = {};
+  for (const id in stocks) dayOpen[id] = stocks[id].price;
+  await db.ref("market/dayOpen").set(dayOpen);
 }
 
 // ---------- 개별 종목에 이벤트 적용 ----------
@@ -271,6 +295,7 @@ async function tickGlobalEvent() {
 
 function startMarketLoop() {
   setInterval(() => {
+    ensureTradingDay();
     tickPriceUpdate();
     tickCompanyEvent();
     tickSectorEvent();
@@ -287,6 +312,16 @@ let currentStocks = {};   // 최신 시세 캐시
 let prevPrices = {};      // 직전 시세 (등락 색상용)
 let currentUserData = { cash: 0, holdings: {} };
 let selectedStockId = null;
+let dayOpenCache = {};    // 당일 시가 (증감률 계산 기준)
+const priceHistoryLocal = {}; // 종목별 최근 가격 배열 (미니 그래프용, 브라우저 세션 한정)
+const MAX_HISTORY = 30;
+
+// 보유 종목 데이터를 {qty, avgPrice} 형태로 정규화 (예전 숫자 형식도 호환)
+function normalizeHolding(h, fallbackPrice) {
+  if (h == null) return { qty: 0, avgPrice: 0 };
+  if (typeof h === "number") return { qty: h, avgPrice: fallbackPrice || 0 };
+  return { qty: h.qty || 0, avgPrice: h.avgPrice || 0 };
+}
 
 const els = {
   loginModal: document.getElementById("login-modal"),
@@ -305,6 +340,8 @@ const els = {
   tradePrice: document.getElementById("trade-price"),
   tradeQty: document.getElementById("trade-qty"),
   tradeOwned: document.getElementById("trade-owned"),
+  tradeReturnRow: document.getElementById("trade-return-row"),
+  tradeReturn: document.getElementById("trade-return"),
   tradeTotal: document.getElementById("trade-total"),
   buyBtn: document.getElementById("buy-btn"),
   sellBtn: document.getElementById("sell-btn"),
@@ -316,8 +353,9 @@ function totalAssetsOf(userData) {
   let total = userData.cash || 0;
   const holdings = userData.holdings || {};
   for (const id in holdings) {
+    const h = normalizeHolding(holdings[id]);
     const price = currentStocks[id] ? currentStocks[id].price : 0;
-    total += price * holdings[id];
+    total += price * h.qty;
   }
   return total;
 }
@@ -361,6 +399,7 @@ auth.onAuthStateChanged(async user => {
   await seedMarketIfNeeded();
   startMarketLoop();
   listenMarket();
+  listenDayOpen();
   listenUser();
   listenUsers();
   listenNews();
@@ -385,9 +424,21 @@ function listenMarket() {
     const stocks = snap.val() || {};
     prevPrices = currentStocks;
     currentStocks = stocks;
+    for (const id in stocks) {
+      const arr = priceHistoryLocal[id] || (priceHistoryLocal[id] = []);
+      arr.push(stocks[id].price);
+      if (arr.length > MAX_HISTORY) arr.shift();
+    }
     renderMarket();
     renderPortfolio();
     renderTradeModal();
+  });
+}
+
+function listenDayOpen() {
+  db.ref("market/dayOpen").on("value", snap => {
+    dayOpenCache = snap.val() || {};
+    renderMarket();
   });
 }
 
@@ -427,6 +478,35 @@ function priceChangeClass(id) {
   return cur > prev ? "up" : "down";
 }
 
+// 당일 시가 대비 증감률
+function changePctOf(id) {
+  const cur = currentStocks[id] ? currentStocks[id].price : null;
+  const open = dayOpenCache[id];
+  if (cur == null || !open) return null;
+  return ((cur - open) / open) * 100;
+}
+
+// 최근 시세 흐름을 보여주는 작은 SVG 꺾은선 그래프
+function sparklineSVG(id) {
+  const hist = priceHistoryLocal[id];
+  if (!hist || hist.length < 2) {
+    return `<span class="spark-empty">수집 중…</span>`;
+  }
+  const w = 68, h = 24;
+  const min = Math.min(...hist), max = Math.max(...hist);
+  const range = (max - min) || 1;
+  const step = w / (hist.length - 1);
+  const points = hist.map((p, i) => {
+    const x = (i * step).toFixed(1);
+    const y = (h - ((p - min) / range) * h).toFixed(1);
+    return `${x},${y}`;
+  }).join(" ");
+  const trendCls = hist[hist.length - 1] >= hist[0] ? "up" : "down";
+  return `<svg class="spark ${trendCls}" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+      <polyline points="${points}" fill="none" stroke="currentColor" stroke-width="1.6" />
+    </svg>`;
+}
+
 function renderMarket() {
   const sectorsOrder = Object.keys(SECTORS);
   let html = "";
@@ -437,6 +517,9 @@ function renderMarket() {
       if (!s) return;
       const cls = priceChangeClass(c.id);
       const marketCap = s.price * s.listedShares;
+      const chg = changePctOf(c.id);
+      const chgCls = chg == null ? "" : chg > 0 ? "up" : chg < 0 ? "down" : "";
+      const chgText = chg == null ? "-" : `${chg > 0 ? "+" : ""}${chg.toFixed(2)}%`;
       html += `
         <tr class="stock-row" data-id="${c.id}">
           <td class="name">${s.name}</td>
@@ -444,6 +527,15 @@ function renderMarket() {
           <td class="listed">${fmt(s.listedShares)}주</td>
           <td class="cap">${fmt(marketCap)}원</td>
           <td><button class="trade-btn" data-id="${c.id}">거래</button></td>
+        </tr>
+        <tr class="stock-sub-row" data-id="${c.id}">
+          <td colspan="5">
+            <div class="sub-row-inner">
+              <span class="spark-wrap">${sparklineSVG(c.id)}</span>
+              <span class="chg ${chgCls}">${chgText}</span>
+              <span class="chg-label">당일 시가 대비</span>
+            </div>
+          </td>
         </tr>`;
     });
   });
@@ -463,23 +555,28 @@ function renderMarket() {
 
 function renderPortfolio() {
   const holdings = currentUserData.holdings || {};
-  const ids = Object.keys(holdings).filter(id => holdings[id] > 0);
-  if (ids.length === 0) {
-    els.portfolioBody.innerHTML = `<tr><td colspan="4" class="empty">보유 종목이 없습니다.</td></tr>`;
+  const entries = Object.keys(holdings)
+    .map(id => ({ id, h: normalizeHolding(holdings[id]) }))
+    .filter(e => e.h.qty > 0);
+  if (entries.length === 0) {
+    els.portfolioBody.innerHTML = `<tr><td colspan="6" class="empty">보유 종목이 없습니다.</td></tr>`;
     return;
   }
   let html = "";
-  ids.forEach(id => {
+  entries.forEach(({ id, h }) => {
     const s = currentStocks[id];
     if (!s) return;
-    const qty = holdings[id];
-    const value = s.price * qty;
+    const value = s.price * h.qty;
+    const returnPct = h.avgPrice > 0 ? ((s.price - h.avgPrice) / h.avgPrice) * 100 : 0;
+    const cls = returnPct > 0 ? "up" : returnPct < 0 ? "down" : "";
     html += `
       <tr>
         <td>${s.name}</td>
-        <td>${fmt(qty)}주</td>
+        <td>${fmt(h.qty)}주</td>
+        <td>${fmt(h.avgPrice)}원</td>
         <td>${fmt(s.price)}원</td>
         <td>${fmt(value)}원</td>
+        <td class="${cls}">${returnPct > 0 ? "+" : ""}${returnPct.toFixed(2)}%</td>
       </tr>`;
   });
   els.portfolioBody.innerHTML = html;
@@ -525,25 +622,40 @@ function renderTradeModal() {
   const s = currentStocks[selectedStockId];
   if (!s) return;
   const qty = Math.max(0, parseInt(els.tradeQty.value) || 0);
-  const owned = (currentUserData.holdings || {})[selectedStockId] || 0;
+  const owned = normalizeHolding((currentUserData.holdings || {})[selectedStockId]);
   els.tradeStockName.textContent = s.name;
   els.tradePrice.textContent = fmt(s.price) + "원";
-  els.tradeOwned.textContent = fmt(owned) + "주";
+  els.tradeOwned.textContent = fmt(owned.qty) + "주";
   els.tradeTotal.textContent = fmt(s.price * qty) + "원";
+
+  if (owned.qty > 0 && owned.avgPrice > 0) {
+    const returnPct = ((s.price - owned.avgPrice) / owned.avgPrice) * 100;
+    const cls = returnPct > 0 ? "up" : returnPct < 0 ? "down" : "";
+    els.tradeReturn.className = cls;
+    els.tradeReturn.textContent = `${returnPct > 0 ? "+" : ""}${returnPct.toFixed(2)}% (평단가 ${fmt(owned.avgPrice)}원)`;
+    els.tradeReturnRow.style.display = "flex";
+  } else {
+    els.tradeReturnRow.style.display = "none";
+  }
 }
 
 els.buyBtn.addEventListener("click", async () => {
   const qty = Math.max(0, parseInt(els.tradeQty.value) || 0);
   if (qty <= 0) return;
   const s = currentStocks[selectedStockId];
-  const cost = s.price * qty;
+  const price = s.price;
+  const cost = price * qty;
   const ref = db.ref("users/" + currentUid);
   const res = await ref.transaction(u => {
     if (!u) return u;
     if ((u.cash || 0) < cost) return; // 잔액 부족 -> 중단
     u.cash = (u.cash || 0) - cost;
     u.holdings = u.holdings || {};
-    u.holdings[selectedStockId] = (u.holdings[selectedStockId] || 0) + qty;
+    const existing = normalizeHolding(u.holdings[selectedStockId], price);
+    const newQty = existing.qty + qty;
+    // 매수 시점 기준 가중평균 평단가 계산
+    const newAvgPrice = Math.round((existing.avgPrice * existing.qty + price * qty) / newQty);
+    u.holdings[selectedStockId] = { qty: newQty, avgPrice: newAvgPrice };
     return u;
   });
   if (!res.committed) alert("현금이 부족합니다.");
@@ -557,10 +669,14 @@ els.sellBtn.addEventListener("click", async () => {
   const ref = db.ref("users/" + currentUid);
   const res = await ref.transaction(u => {
     if (!u) return u;
-    const owned = (u.holdings && u.holdings[selectedStockId]) || 0;
-    if (owned < qty) return; // 보유 부족 -> 중단
+    const existing = normalizeHolding(u.holdings && u.holdings[selectedStockId]);
+    if (existing.qty < qty) return; // 보유 부족 -> 중단
     u.cash = (u.cash || 0) + revenue;
-    u.holdings[selectedStockId] = owned - qty;
+    const remainingQty = existing.qty - qty;
+    // 매도는 평단가를 바꾸지 않음(남은 수량이 있으면 유지, 없으면 초기화)
+    u.holdings[selectedStockId] = remainingQty > 0
+      ? { qty: remainingQty, avgPrice: existing.avgPrice }
+      : { qty: 0, avgPrice: 0 };
     return u;
   });
   if (!res.committed) alert("보유 수량이 부족합니다.");
