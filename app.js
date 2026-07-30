@@ -131,10 +131,10 @@ const TREND_TEMPLATES = [
 // ---------- 장세(정세) 시스템: 7시간마다 전환, 유저에게는 숨겨짐 ----------
 const REGIME_INTERVAL = 7 * 60 * 60 * 1000;
 const REGIME_INFO = {
-  boom_big: { label: "대호황", downMultiplier: 0.6, upMultiplier: 1 },   // 하락률 대폭 감소(완화됨)
-  boom: { label: "호황", downMultiplier: 0.85, upMultiplier: 1 },        // 하락률 소폭 감소(완화됨)
-  bust: { label: "불황", downMultiplier: 1, upMultiplier: 0.85 },        // 상승률 소폭 감소(완화됨)
-  bust_big: { label: "대불황", downMultiplier: 1, upMultiplier: 0.6 }    // 상승률 대폭 감소(완화됨)
+  boom_big: { label: "대호황", downMultiplier: 0.8, upMultiplier: 1 },   // 하락률 대폭 감소(완화됨)
+  boom: { label: "호황", downMultiplier: 0.97, upMultiplier: 1 },        // 하락률 소폭 감소(완화됨)
+  bust: { label: "불황", downMultiplier: 1, upMultiplier: 0.97 },        // 상승률 소폭 감소(완화됨)
+  bust_big: { label: "대불황", downMultiplier: 1, upMultiplier: 0.8 }    // 상승률 대폭 감소(완화됨)
 };
 function pickRegimeType() {
   const r = Math.random();
