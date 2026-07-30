@@ -129,12 +129,12 @@ const TREND_TEMPLATES = [
 ];
 
 // ---------- 장세(정세) 시스템: 7시간마다 전환, 유저에게는 숨겨짐 ----------
-const REGIME_INTERVAL = 30 * 60 * 1000;
+const REGIME_INTERVAL = 7 * 60 * 60 * 1000;
 const REGIME_INFO = {
-  boom_big: { label: "대호황", downMultiplier: 0.5, upMultiplier: 1 },   // 하락률 대폭 감소
-  boom: { label: "호황", downMultiplier: 0.95, upMultiplier: 1 },         // 하락률 소폭 감소
-  bust: { label: "불황", downMultiplier: 1, upMultiplier: 0.95 },         // 상승률 소폭 감소
-  bust_big: { label: "대불황", downMultiplier: 1, upMultiplier: 0.8 }    // 상승률 대폭 감소
+  boom_big: { label: "대호황", downMultiplier: 0.6, upMultiplier: 1 },   // 하락률 대폭 감소(완화됨)
+  boom: { label: "호황", downMultiplier: 0.85, upMultiplier: 1 },        // 하락률 소폭 감소(완화됨)
+  bust: { label: "불황", downMultiplier: 1, upMultiplier: 0.85 },        // 상승률 소폭 감소(완화됨)
+  bust_big: { label: "대불황", downMultiplier: 1, upMultiplier: 0.6 }    // 상승률 대폭 감소(완화됨)
 };
 function pickRegimeType() {
   const r = Math.random();
@@ -225,6 +225,8 @@ async function seedMarketIfNeeded() {
     lastHistorySample: 0,
     lastTrendCheck: 0,
     lastVolumeCheck: 0,
+    lastOrderCheck: 0,
+    priceTickCount: 0,
     globalCooldownUntil: 0,
     trendCooldownUntil: 0,
     tradingDate: todayStrKST(),
@@ -373,6 +375,7 @@ async function tickPriceUpdate() {
     }
   }
   await db.ref("market/stocks").update(updates);
+  db.ref("market/meta/priceTickCount").transaction(c => (c || 0) + 1);
 }
 
 // ---------- 기업별 이슈 ----------
@@ -509,6 +512,70 @@ async function applyVolumeImpact(id, basePct, label) {
   await pushNews(`📊 [거래량] ${name} ${label} (${adjPct > 0 ? "+" : ""}${adjPct.toFixed(1)}%)`);
 }
 
+// ---------- 예약주문(지정가 매수/매도) 체결 엔진 ----------
+// 주문을 넣은 시점 이후 가격이 4번 바뀌기 전까지는 체결 비교를 시작하지 않음
+const ORDER_DELAY_TICKS = 4;
+
+async function tryFillOrder(uid, orderId, order, currentPrice) {
+  const ref = db.ref("users/" + uid);
+  const res = await ref.transaction(u => {
+    if (!u || !u.orders || !u.orders[orderId] || u.orders[orderId].status !== "pending") return; // 이미 처리됨/없음 -> 중단
+    const ord = u.orders[orderId];
+    if (ord.side === "buy") {
+      const cost = currentPrice * ord.qty;
+      if ((u.cash || 0) < cost) return; // 잔액 부족 -> 대기 유지 (다음 체크 때 재시도)
+      u.cash = (u.cash || 0) - cost;
+      u.holdings = u.holdings || {};
+      const existing = normalizeHolding(u.holdings[ord.stockId], currentPrice);
+      const newQty = existing.qty + ord.qty;
+      const newAvgPrice = Math.round((existing.avgPrice * existing.qty + currentPrice * ord.qty) / newQty);
+      u.holdings[ord.stockId] = { qty: newQty, avgPrice: newAvgPrice };
+    } else {
+      const existing = normalizeHolding(u.holdings && u.holdings[ord.stockId]);
+      if (existing.qty < ord.qty) return; // 보유 부족 -> 대기 유지
+      u.cash = (u.cash || 0) + currentPrice * ord.qty;
+      const remain = existing.qty - ord.qty;
+      u.holdings[ord.stockId] = remain > 0
+        ? { qty: remain, avgPrice: existing.avgPrice }
+        : { qty: 0, avgPrice: 0 };
+    }
+    u.orders[orderId].status = "filled";
+    u.orders[orderId].filledPrice = currentPrice;
+    u.orders[orderId].filledAt = Date.now();
+    return u;
+  });
+  if (res.committed) recordTradeVolume(order.stockId, order.side, order.qty);
+}
+
+async function tickOrders() {
+  const ok = await claim("market/meta/lastOrderCheck", 3000);
+  if (!ok) return;
+  const [usersSnap, stocksSnap, tickSnap] = await Promise.all([
+    db.ref("users").once("value"),
+    db.ref("market/stocks").once("value"),
+    db.ref("market/meta/priceTickCount").once("value")
+  ]);
+  const users = usersSnap.val() || {};
+  const stocks = stocksSnap.val() || {};
+  const currentTick = tickSnap.val() || 0;
+
+  for (const uid in users) {
+    const orders = users[uid].orders;
+    if (!orders) continue;
+    for (const orderId in orders) {
+      const order = orders[orderId];
+      if (!order || order.status !== "pending") continue;
+      if (currentTick - (order.createdTickCount || 0) < ORDER_DELAY_TICKS) continue; // 아직 4틱 안 지남
+      const stock = stocks[order.stockId];
+      if (!stock) continue;
+      const price = stock.price;
+      const matched = order.side === "buy" ? price <= order.limitPrice : price >= order.limitPrice;
+      if (!matched) continue;
+      await tryFillOrder(uid, orderId, order, price);
+    }
+  }
+}
+
 // ---------- 뉴스 통합 디스패처 (3초마다 하나씩) ----------
 const NEWS_TICK_INTERVAL = 3000;
 
@@ -535,6 +602,7 @@ function startMarketLoop() {
     tickNewsEvent();
     tickTrendEvent();
     tickVolumeImpact();
+    tickOrders();
   }, 1000);
 }
 
@@ -567,11 +635,13 @@ const els = {
   ticker: document.getElementById("ticker"),
   marketBody: document.getElementById("market-body"),
   portfolioBody: document.getElementById("portfolio-body"),
+  ordersList: document.getElementById("orders-list"),
   newsList: document.getElementById("news-list"),
   rankBody: document.getElementById("rank-body"),
   tradeModal: document.getElementById("trade-modal"),
   tradeStockName: document.getElementById("trade-stock-name"),
   tradePrice: document.getElementById("trade-price"),
+  tradeLimitPrice: document.getElementById("trade-limit-price"),
   tradeQty: document.getElementById("trade-qty"),
   tradeOwned: document.getElementById("trade-owned"),
   tradeReturnRow: document.getElementById("trade-return-row"),
@@ -700,6 +770,7 @@ function listenUser() {
     renderPortfolio();
     renderTradeModal();
     renderMarket();
+    renderOrders();
   });
 }
 
@@ -893,6 +964,43 @@ function renderPortfolio() {
   els.portfolioBody.innerHTML = html;
 }
 
+function renderOrders() {
+  const orders = currentUserData.orders || {};
+  const list = Object.keys(orders)
+    .map(orderId => ({ orderId, o: orders[orderId] }))
+    .filter(x => x.o)
+    .sort((a, b) => (b.o.createdAt || 0) - (a.o.createdAt || 0))
+    .slice(0, 30); // 최근 30건만 표시
+
+  if (list.length === 0) {
+    els.ordersList.innerHTML = `<li class="empty">예약주문이 없습니다.</li>`;
+    return;
+  }
+
+  const statusLabel = { pending: "대기중", filled: "체결됨", cancelled: "취소됨" };
+
+  els.ordersList.innerHTML = list.map(({ orderId, o }) => {
+    const stockName = (currentStocks[o.stockId] && currentStocks[o.stockId].name) || o.stockId;
+    const sideLabel = o.side === "buy" ? "매수" : "매도";
+    const cancelBtn = o.status === "pending"
+      ? `<button class="cancel-order-btn" data-order-id="${orderId}">취소</button>`
+      : "";
+    return `
+      <li>
+        <div class="order-info">
+          <span><span class="order-side ${o.side}">${sideLabel}</span> ${stockName}</span>
+          <span class="order-meta">${fmt(o.qty)}주 · 예약가 ${fmt(o.limitPrice)}원${o.status === "filled" ? ` · 체결가 ${fmt(o.filledPrice)}원` : ""}</span>
+        </div>
+        <span class="order-status ${o.status}">${statusLabel[o.status] || o.status}</span>
+        ${cancelBtn}
+      </li>`;
+  }).join("");
+
+  els.ordersList.querySelectorAll(".cancel-order-btn").forEach(btn => {
+    btn.addEventListener("click", () => cancelOrder(btn.dataset.orderId));
+  });
+}
+
 function renderNews(items) {
   if (items.length === 0) {
     els.newsList.innerHTML = `<li class="empty">아직 뉴스가 없습니다.</li>`;
@@ -918,15 +1026,18 @@ function renderRanking() {
     </tr>`).join("");
 }
 
-// ---------- 거래 모달 ----------
+// ---------- 거래 모달 (예약주문) ----------
 function openTradeModal(id) {
   selectedStockId = id;
   els.tradeQty.value = 1;
+  const s = currentStocks[id];
+  els.tradeLimitPrice.value = s ? s.price : "";
   renderTradeModal();
   els.tradeModal.classList.remove("hidden");
 }
 els.closeTradeBtn.addEventListener("click", () => els.tradeModal.classList.add("hidden"));
 els.tradeQty.addEventListener("input", renderTradeModal);
+els.tradeLimitPrice.addEventListener("input", renderTradeModal);
 
 const qtyButtons = document.querySelectorAll(".qty-btn");
 qtyButtons.forEach(btn => {
@@ -941,11 +1052,12 @@ function renderTradeModal() {
   const s = currentStocks[selectedStockId];
   if (!s) return;
   const qty = Math.max(0, parseInt(els.tradeQty.value) || 0);
+  const limitPrice = Math.max(0, parseInt(els.tradeLimitPrice.value) || 0);
   const owned = normalizeHolding((currentUserData.holdings || {})[selectedStockId]);
   els.tradeStockName.textContent = s.name;
   els.tradePrice.textContent = fmt(s.price) + "원";
   els.tradeOwned.textContent = fmt(owned.qty) + "주";
-  els.tradeTotal.textContent = fmt(s.price * qty) + "원";
+  els.tradeTotal.textContent = fmt(limitPrice * qty) + "원";
 
   qtyButtons.forEach(btn => {
     btn.classList.toggle("active", parseInt(btn.dataset.qty) === qty);
@@ -962,56 +1074,35 @@ function renderTradeModal() {
   }
 }
 
-els.buyBtn.addEventListener("click", async () => {
+// 예약주문 등록: 즉시 체결되지 않고, 가격이 4번 바뀐 뒤부터 조건(매수: 가격<=예약가 / 매도: 가격>=예약가) 충족 시 자동 체결
+async function placeOrder(side) {
   const qty = Math.max(0, parseInt(els.tradeQty.value) || 0);
-  if (qty <= 0) return;
-  const s = currentStocks[selectedStockId];
-  const price = s.price;
-  const cost = price * qty;
-  const ref = db.ref("users/" + currentUid);
-  const res = await ref.transaction(u => {
-    if (!u) return u;
-    if ((u.cash || 0) < cost) return; // 잔액 부족 -> 중단
-    u.cash = (u.cash || 0) - cost;
-    u.holdings = u.holdings || {};
-    const existing = normalizeHolding(u.holdings[selectedStockId], price);
-    const newQty = existing.qty + qty;
-    // 매수 시점 기준 가중평균 평단가 계산
-    const newAvgPrice = Math.round((existing.avgPrice * existing.qty + price * qty) / newQty);
-    u.holdings[selectedStockId] = { qty: newQty, avgPrice: newAvgPrice };
-    return u;
-  });
-  if (!res.committed) {
-    alert("현금이 부족합니다.");
-  } else {
-    recordTradeVolume(selectedStockId, "buy", qty);
-  }
-});
+  const limitPrice = Math.max(0, parseInt(els.tradeLimitPrice.value) || 0);
+  if (qty <= 0 || limitPrice <= 0 || !selectedStockId) return;
 
-els.sellBtn.addEventListener("click", async () => {
-  const qty = Math.max(0, parseInt(els.tradeQty.value) || 0);
-  if (qty <= 0) return;
-  const s = currentStocks[selectedStockId];
-  const revenue = s.price * qty;
-  const ref = db.ref("users/" + currentUid);
-  const res = await ref.transaction(u => {
-    if (!u) return u;
-    const existing = normalizeHolding(u.holdings && u.holdings[selectedStockId]);
-    if (existing.qty < qty) return; // 보유 부족 -> 중단
-    u.cash = (u.cash || 0) + revenue;
-    const remainingQty = existing.qty - qty;
-    // 매도는 평단가를 바꾸지 않음(남은 수량이 있으면 유지, 없으면 초기화)
-    u.holdings[selectedStockId] = remainingQty > 0
-      ? { qty: remainingQty, avgPrice: existing.avgPrice }
-      : { qty: 0, avgPrice: 0 };
-    return u;
+  const tickSnap = await db.ref("market/meta/priceTickCount").once("value");
+  const createdTickCount = tickSnap.val() || 0;
+  const orderId = db.ref("users/" + currentUid + "/orders").push().key;
+  await db.ref(`users/${currentUid}/orders/${orderId}`).set({
+    stockId: selectedStockId,
+    side,
+    qty,
+    limitPrice,
+    createdTickCount,
+    createdAt: Date.now(),
+    status: "pending"
   });
-  if (!res.committed) {
-    alert("보유 수량이 부족합니다.");
-  } else {
-    recordTradeVolume(selectedStockId, "sell", qty);
-  }
-});
+  els.tradeModal.classList.add("hidden");
+}
+
+els.buyBtn.addEventListener("click", () => placeOrder("buy"));
+els.sellBtn.addEventListener("click", () => placeOrder("sell"));
+
+async function cancelOrder(orderId) {
+  await db.ref(`users/${currentUid}/orders/${orderId}/status`).set("cancelled");
+}
+
+
 
 // ---------- 정렬 / 보유종목 상단고정 ----------
 els.sortSelect.addEventListener("change", () => {
