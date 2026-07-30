@@ -103,6 +103,9 @@
             </thead>
             <tbody id="portfolio-body"></tbody>
           </table>
+
+          <h3 class="panel-subtitle">예약주문</h3>
+          <ul id="orders-list" class="orders-list"></ul>
         </div>
 
       </div>
@@ -123,15 +126,20 @@
 
   </main>
 
-  <!-- 거래 모달 -->
+  <!-- 거래 모달 (예약주문) -->
   <div id="trade-modal" class="modal-overlay hidden">
     <div class="modal trade-card">
       <button id="close-trade-btn" class="close-btn">×</button>
       <h2 id="trade-stock-name">-</h2>
+      <p class="order-hint">가격을 지정해 예약하면, 시장가가 그 가격에 도달할 때 자동으로 체결돼요. (주문 후 시세가 4번 바뀐 뒤부터 체결 확인을 시작해요)</p>
       <div class="trade-row"><span class="label">현재가</span><span id="trade-price">-</span></div>
       <div class="trade-row"><span class="label">보유수량</span><span id="trade-owned">-</span></div>
       <div class="trade-row" id="trade-return-row" style="display:none;">
         <span class="label">수익률</span><span id="trade-return">-</span>
+      </div>
+      <div class="trade-row">
+        <span class="label">예약가격</span>
+        <input id="trade-limit-price" type="number" min="1" />
       </div>
       <div class="trade-row">
         <span class="label">수량</span>
@@ -144,10 +152,10 @@
         <button type="button" class="qty-btn" data-qty="50">50</button>
         <button type="button" class="qty-btn" data-qty="100">100</button>
       </div>
-      <div class="trade-row total"><span class="label">합계</span><span id="trade-total">-</span></div>
+      <div class="trade-row total"><span class="label">예상 합계</span><span id="trade-total">-</span></div>
       <div class="trade-actions">
-        <button id="buy-btn" class="buy-btn">매수</button>
-        <button id="sell-btn" class="sell-btn">매도</button>
+        <button id="buy-btn" class="buy-btn">매수 예약</button>
+        <button id="sell-btn" class="sell-btn">매도 예약</button>
       </div>
     </div>
   </div>
