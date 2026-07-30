@@ -51,61 +51,72 @@ const LISTED_SHARES_PRICE_TRIGGER = 2000000;
 const INITIAL_CASH = 500000;
 
 // ---------- 이벤트 템플릿 ----------
-// 기업별 이슈 (전체 18개 기업 중 무작위 1곳)
+// 기업별 이슈 (전체 18개 기업 중 무작위 1곳) - 변동폭 대폭 상향
 const COMPANY_TEMPLATES = [
-  { text: n => `${n} 오너일가 갑질 논란`, pct: -5 },
-  { text: n => `${n}, 아동단체에 기부`, pct: 3 },
-  { text: n => `${n}, 오늘의 기업 선정`, pct: 5 },
-  { text: n => `${n} 내부 비리 고발`, pct: -3 }
+  { text: n => `${n} 오너일가 갑질 논란`, pct: -9 },
+  { text: n => `${n}, 아동단체에 기부`, pct: 6 },
+  { text: n => `${n}, 오늘의 기업 선정`, pct: 9 },
+  { text: n => `${n} 내부 비리 고발`, pct: -6 }
 ];
 
-// 종목별 이슈 (해당 종목 내 무작위 1개 기업에 적용)
+// 종목별 이슈 (해당 종목 내 무작위 1개 기업에 적용) - 변동폭 대폭 상향
 const SECTOR_TEMPLATES = {
   tech: [
-    { text: n => `${n} 생산 공장에 화재`, pct: -3 },
-    { text: n => `${n} 산업 스파이로 기술 유출`, pct: -5 },
-    { text: n => `${n} 신기술 개발`, pct: 5 },
-    { text: n => `${n} 국가 지원 확대`, pct: 3 }
+    { text: n => `${n} 생산 공장에 화재`, pct: -6 },
+    { text: n => `${n} 산업 스파이로 기술 유출`, pct: -9 },
+    { text: n => `${n} 신기술 개발`, pct: 9 },
+    { text: n => `${n} 국가 지원 확대`, pct: 6 }
   ],
   ent: [
-    { text: n => `${n} 소속 아이돌 멜론차트 1위`, pct: 5 },
-    { text: n => `${n} 소속 아이돌 갑질 논란`, pct: -5 },
-    { text: n => `${n} 소속 아이돌 충격 열애설`, pct: -3 },
-    { text: n => `${n} 소속 아이돌 국가 홍보대사 선정`, pct: 3 }
+    { text: n => `${n} 소속 아이돌 멜론차트 1위`, pct: 9 },
+    { text: n => `${n} 소속 아이돌 갑질 논란`, pct: -9 },
+    { text: n => `${n} 소속 아이돌 충격 열애설`, pct: -6 },
+    { text: n => `${n} 소속 아이돌 국가 홍보대사 선정`, pct: 6 }
   ],
   bio: [
-    { text: n => `${n} 신약개발`, pct: 5 },
-    { text: n => `${n} 약품서 인체 유해성분 검출`, pct: -3 },
-    { text: n => `${n} 약품 부작용 발견`, pct: -5 },
-    { text: n => `${n} 약품원료 가격 하락`, pct: 3 }
+    { text: n => `${n} 신약개발`, pct: 9 },
+    { text: n => `${n} 약품서 인체 유해성분 검출`, pct: -6 },
+    { text: n => `${n} 약품 부작용 발견`, pct: -9 },
+    { text: n => `${n} 약품원료 가격 하락`, pct: 6 }
   ],
   food: [
-    { text: n => `${n} 신제품 출시`, pct: 5 },
-    { text: n => `${n} 인체 유해성분 발견`, pct: -3 },
-    { text: n => `${n} 생산공장 위생 논란`, pct: -5 },
-    { text: n => `${n} 제품 건강 효능 발견`, pct: 3 }
+    { text: n => `${n} 신제품 출시`, pct: 9 },
+    { text: n => `${n} 인체 유해성분 발견`, pct: -6 },
+    { text: n => `${n} 생산공장 위생 논란`, pct: -9 },
+    { text: n => `${n} 제품 건강 효능 발견`, pct: 6 }
   ],
   const: [
-    { text: n => `${n} 노동자 시위`, pct: -3 },
-    { text: n => `${n} 건물 완공`, pct: 3 },
-    { text: n => `${n} 국가 건물 건설 추진`, pct: 5 },
-    { text: n => `${n} 건설 현장서 인명사고`, pct: -5 }
+    { text: n => `${n} 노동자 시위`, pct: -6 },
+    { text: n => `${n} 건물 완공`, pct: 6 },
+    { text: n => `${n} 국가 건물 건설 추진`, pct: 9 },
+    { text: n => `${n} 건설 현장서 인명사고`, pct: -9 }
   ],
   chem: [
-    { text: n => `${n} 신소재 개발`, pct: 5 },
-    { text: n => `${n} 생산 공장서 인체 유해물질 대량 유출`, pct: -5 },
-    { text: n => `${n} 생산 공장서 화재`, pct: -3 },
-    { text: n => `${n} 국가 지원 확대`, pct: 3 }
+    { text: n => `${n} 신소재 개발`, pct: 9 },
+    { text: n => `${n} 생산 공장서 인체 유해물질 대량 유출`, pct: -9 },
+    { text: n => `${n} 생산 공장서 화재`, pct: -6 },
+    { text: n => `${n} 국가 지원 확대`, pct: 6 }
   ]
 };
 
-// 글로벌 이슈 (전체 기업에 동일 적용)
+// 글로벌 이슈 (전체 기업에 동일 적용) - 영향력을 기업/종목 이슈보다 더 크게
 const GLOBAL_TEMPLATES = [
-  { text: "전염병 팬데믹 발생", pct: -5 },
-  { text: "역대급 경제 호황", pct: 5 },
-  { text: "중동서 전쟁 발생", pct: -5 },
-  { text: "트럼프 관세 낮추겠다 발표", pct: 3 }
+  { text: "전염병 팬데믹 발생", pct: -15 },
+  { text: "역대급 경제 호황", pct: 15 },
+  { text: "중동서 전쟁 발생", pct: -12 },
+  { text: "트럼프 관세 낮추겠다 발표", pct: 8 }
 ];
+
+// 업/다운 방향별로 미리 나눠서, 특정 방향으로 확률을 쏠리게 뽑을 때 사용
+const COMPANY_UP_TEMPLATES = COMPANY_TEMPLATES.filter(t => t.pct > 0);
+const COMPANY_DOWN_TEMPLATES = COMPANY_TEMPLATES.filter(t => t.pct < 0);
+const SECTOR_TEMPLATE_POOLS = {};
+Object.keys(SECTOR_TEMPLATES).forEach(sec => {
+  SECTOR_TEMPLATE_POOLS[sec] = {
+    up: SECTOR_TEMPLATES[sec].filter(t => t.pct > 0),
+    down: SECTOR_TEMPLATES[sec].filter(t => t.pct < 0)
+  };
+});
 
 const ALL_COMPANIES = Object.keys(SECTORS).flatMap(sec =>
   SECTORS[sec].map(c => ({ ...c, sector: sec }))
@@ -177,9 +188,7 @@ async function seedMarketIfNeeded() {
   await db.ref("market/stocks").set(stocks);
   await db.ref("market/meta").set({
     lastPriceUpdate: 0,
-    lastCompanyEvent: 0,
-    lastSectorEvent: 0,
-    lastGlobalCheck: 0,
+    lastNewsEvent: 0,
     lastHistorySample: 0,
     globalCooldownUntil: 0,
     tradingDate: todayStrKST()
@@ -241,17 +250,55 @@ async function tickHistorySample() {
   }
 }
 
-// ---------- 개별 종목에 이벤트 적용 ----------
-async function applyEventToStock(id, pct) {
+// ---------- 개별 종목에 이벤트 적용 (연속 동일방향 뉴스일수록 변동폭 확대, 최대 ±10%) ----------
+const STREAK_MAX = 3;
+const STREAK_CAP_PCT = 10; // 3연속 시 최대 변동폭
+const STREAK_STEP2_PCT = 8; // 2연속째 최소 변동폭
+
+async function applyEventToStock(id, basePct) {
+  const dir = basePct > 0 ? "up" : "down";
+
+  // 이 종목에 대한 "같은 방향" 연속 뉴스 횟수를 집계 (최대 3까지, 모든 유저가 공유)
+  let streakCount = 1;
+  await db.ref("market/streaks/" + id).transaction(s => {
+    if (!s || s.dir !== dir) {
+      streakCount = 1;
+      return { dir, count: 1 };
+    }
+    streakCount = Math.min(STREAK_MAX, (s.count || 1) + 1);
+    return { dir, count: streakCount };
+  });
+
+  let effectiveAbs = Math.abs(basePct);
+  if (streakCount === 2) effectiveAbs = Math.max(effectiveAbs, STREAK_STEP2_PCT);
+  if (streakCount >= STREAK_MAX) effectiveAbs = STREAK_CAP_PCT;
+  const effectivePct = dir === "up" ? effectiveAbs : -effectiveAbs;
+
   const ref = db.ref("market/stocks/" + id);
   await ref.transaction(s => {
     if (!s) return s;
-    s.price = Math.max(1, Math.round(s.price * (1 + pct / 100)));
+    s.price = Math.max(1, Math.round(s.price * (1 + effectivePct / 100)));
     if (s.price > LISTED_SHARES_PRICE_TRIGGER && s.listedShares < LISTED_SHARES_UPGRADE) {
       s.listedShares = LISTED_SHARES_UPGRADE;
     }
     return s;
   });
+
+  return { effectivePct, streakCount };
+}
+
+function newsSuffix(effectivePct, streakCount) {
+  if (streakCount < 2) return "";
+  const word = effectivePct > 0 ? "연속 급등" : "연속 급락";
+  return ` 🔥${streakCount}회 ${word}`;
+}
+
+// 현재 시가총액이 초기 설정값의 30% 미만이면 상승 확률을 2배로 (기본 50% -> 약 67%)
+function pickDirection(initialCap, liveStock) {
+  const curCap = liveStock.price * liveStock.listedShares;
+  const isUndervalued = curCap < initialCap * 0.3;
+  const upProb = isUndervalued ? (2 / 3) : 0.5;
+  return Math.random() < upProb ? "up" : "down";
 }
 
 // ---------- 시세 갱신 (5초마다, 장 시간에만) ----------
@@ -275,34 +322,34 @@ async function tickPriceUpdate() {
   await db.ref("market/stocks").update(updates);
 }
 
-// ---------- 기업별 이슈 (1분마다) ----------
-async function tickCompanyEvent() {
-  if (!isMarketOpen()) return;
-  const ok = await claim("market/meta/lastCompanyEvent", 30000);
-  if (!ok) return;
+// ---------- 기업별 이슈 ----------
+async function fireCompanyEvent() {
   const company = pick(ALL_COMPANIES);
-  const tmpl = pick(COMPANY_TEMPLATES);
-  await applyEventToStock(company.id, tmpl.pct);
-  await pushNews(`[기업] ${tmpl.text(company.name)} (${tmpl.pct > 0 ? "+" : ""}${tmpl.pct}%)`);
+  const snap = await db.ref("market/stocks/" + company.id).once("value");
+  const liveStock = snap.val();
+  if (!liveStock) return;
+  const dir = pickDirection(company.cap, liveStock);
+  const tmpl = pick(dir === "up" ? COMPANY_UP_TEMPLATES : COMPANY_DOWN_TEMPLATES);
+  const { effectivePct, streakCount } = await applyEventToStock(company.id, tmpl.pct);
+  await pushNews(`[기업] ${tmpl.text(company.name)} (${effectivePct > 0 ? "+" : ""}${effectivePct.toFixed(1)}%${newsSuffix(effectivePct, streakCount)})`);
 }
 
-// ---------- 종목별 이슈 (30초마다) ----------
-async function tickSectorEvent() {
-  if (!isMarketOpen()) return;
-  const ok = await claim("market/meta/lastSectorEvent", 10000);
-  if (!ok) return;
+// ---------- 종목별 이슈 ----------
+async function fireSectorEvent() {
   const sectorKey = pick(Object.keys(SECTORS));
   const company = pick(SECTORS[sectorKey]);
-  const tmpl = pick(SECTOR_TEMPLATES[sectorKey]);
-  await applyEventToStock(company.id, tmpl.pct);
-  await pushNews(`[${SECTOR_LABEL[sectorKey]}] ${tmpl.text(company.name)} (${tmpl.pct > 0 ? "+" : ""}${tmpl.pct}%)`);
+  const snap = await db.ref("market/stocks/" + company.id).once("value");
+  const liveStock = snap.val();
+  if (!liveStock) return;
+  const dir = pickDirection(company.cap, liveStock);
+  const pool = SECTOR_TEMPLATE_POOLS[sectorKey][dir];
+  const tmpl = pick(pool);
+  const { effectivePct, streakCount } = await applyEventToStock(company.id, tmpl.pct);
+  await pushNews(`[${SECTOR_LABEL[sectorKey]}] ${tmpl.text(company.name)} (${effectivePct > 0 ? "+" : ""}${effectivePct.toFixed(1)}%${newsSuffix(effectivePct, streakCount)})`);
 }
 
-// ---------- 글로벌 이슈 (1분마다 체크, 30% 확률, 5분 쿨타임) ----------
-async function tickGlobalEvent() {
-  if (!isMarketOpen()) return;
-  const ok = await claim("market/meta/lastGlobalCheck", 60000);
-  if (!ok) return;
+// ---------- 글로벌 이슈 (30% 확률, 5분 쿨타임 - 영향력을 가장 크게) ----------
+async function fireGlobalEvent() {
   const cdSnap = await db.ref("market/meta/globalCooldownUntil").once("value");
   const cooldownUntil = cdSnap.val() || 0;
   if (Date.now() < cooldownUntil) return;
@@ -326,14 +373,29 @@ async function tickGlobalEvent() {
   await pushNews(`🌍 [글로벌] ${tmpl.text} (전체 ${tmpl.pct > 0 ? "+" : ""}${tmpl.pct}%)`);
 }
 
+// ---------- 뉴스 통합 디스패처 (3초마다 하나씩) ----------
+const NEWS_TICK_INTERVAL = 3000;
+
+async function tickNewsEvent() {
+  if (!isMarketOpen()) return;
+  const ok = await claim("market/meta/lastNewsEvent", NEWS_TICK_INTERVAL);
+  if (!ok) return;
+  const roll = Math.random();
+  if (roll < 0.12) {
+    await fireGlobalEvent(); // 자체 쿨타임/확률 게이트를 통과해야 실제로 발생
+  } else if (roll < 0.56) {
+    await fireCompanyEvent();
+  } else {
+    await fireSectorEvent();
+  }
+}
+
 function startMarketLoop() {
   setInterval(() => {
     ensureTradingDay();
     tickPriceUpdate();
     tickHistorySample();
-    tickCompanyEvent();
-    tickSectorEvent();
-    tickGlobalEvent();
+    tickNewsEvent();
   }, 1000);
 }
 
@@ -718,6 +780,14 @@ function openTradeModal(id) {
 els.closeTradeBtn.addEventListener("click", () => els.tradeModal.classList.add("hidden"));
 els.tradeQty.addEventListener("input", renderTradeModal);
 
+const qtyButtons = document.querySelectorAll(".qty-btn");
+qtyButtons.forEach(btn => {
+  btn.addEventListener("click", () => {
+    els.tradeQty.value = btn.dataset.qty;
+    renderTradeModal();
+  });
+});
+
 function renderTradeModal() {
   if (!selectedStockId) return;
   const s = currentStocks[selectedStockId];
@@ -728,6 +798,10 @@ function renderTradeModal() {
   els.tradePrice.textContent = fmt(s.price) + "원";
   els.tradeOwned.textContent = fmt(owned.qty) + "주";
   els.tradeTotal.textContent = fmt(s.price * qty) + "원";
+
+  qtyButtons.forEach(btn => {
+    btn.classList.toggle("active", parseInt(btn.dataset.qty) === qty);
+  });
 
   if (owned.qty > 0 && owned.avgPrice > 0) {
     const returnPct = ((s.price - owned.avgPrice) / owned.avgPrice) * 100;
