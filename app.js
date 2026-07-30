@@ -129,7 +129,7 @@ const TREND_TEMPLATES = [
 ];
 
 // ---------- 장세(정세) 시스템: 7시간마다 전환, 유저에게는 숨겨짐 ----------
-const REGIME_INTERVAL = 7 * 60 * 60 * 1000;
+const REGIME_INTERVAL = 30 * 60 * 1000;
 const REGIME_INFO = {
   boom_big: { label: "대호황", downMultiplier: 0.3, upMultiplier: 1 },   // 하락률 대폭 감소
   boom: { label: "호황", downMultiplier: 0.7, upMultiplier: 1 },         // 하락률 소폭 감소
