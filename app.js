@@ -278,7 +278,7 @@ async function tickPriceUpdate() {
 // ---------- 기업별 이슈 (1분마다) ----------
 async function tickCompanyEvent() {
   if (!isMarketOpen()) return;
-  const ok = await claim("market/meta/lastCompanyEvent", 60000);
+  const ok = await claim("market/meta/lastCompanyEvent", 30000);
   if (!ok) return;
   const company = pick(ALL_COMPANIES);
   const tmpl = pick(COMPANY_TEMPLATES);
@@ -289,7 +289,7 @@ async function tickCompanyEvent() {
 // ---------- 종목별 이슈 (30초마다) ----------
 async function tickSectorEvent() {
   if (!isMarketOpen()) return;
-  const ok = await claim("market/meta/lastSectorEvent", 30000);
+  const ok = await claim("market/meta/lastSectorEvent", 10000);
   if (!ok) return;
   const sectorKey = pick(Object.keys(SECTORS));
   const company = pick(SECTORS[sectorKey]);
