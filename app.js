@@ -379,7 +379,9 @@ const els = {
   buyBtn: document.getElementById("buy-btn"),
   sellBtn: document.getElementById("sell-btn"),
   closeTradeBtn: document.getElementById("close-trade-btn"),
-  marketStatus: document.getElementById("market-status")
+  marketStatus: document.getElementById("market-status"),
+  sortSelect: document.getElementById("sort-select"),
+  pinOwnedToggle: document.getElementById("pin-owned-toggle")
 };
 
 function totalAssetsOf(userData) {
@@ -487,6 +489,7 @@ function listenUser() {
     els.totalAssets.textContent = fmt(totalAssetsOf(currentUserData)) + "원";
     renderPortfolio();
     renderTradeModal();
+    renderMarket();
   });
 }
 
@@ -554,38 +557,88 @@ function sparklineSVG(id) {
     </svg>`;
 }
 
-function renderMarket() {
-  const sectorsOrder = Object.keys(SECTORS);
-  let html = "";
-  sectorsOrder.forEach(sec => {
-    html += `<tr class="sector-row"><td colspan="5">${SECTOR_LABEL[sec]}</td></tr>`;
-    SECTORS[sec].forEach(c => {
-      const s = currentStocks[c.id];
-      if (!s) return;
-      const cls = priceChangeClass(c.id);
-      const marketCap = s.price * s.listedShares;
-      const chg = changePctOf(c.id);
-      const chgCls = chg == null ? "" : chg > 0 ? "up" : chg < 0 ? "down" : "";
-      const chgText = chg == null ? "-" : `${chg > 0 ? "+" : ""}${chg.toFixed(2)}%`;
-      html += `
-        <tr class="stock-row" data-id="${c.id}">
-          <td class="name">${s.name}</td>
-          <td class="price ${cls}">${fmt(s.price)}원</td>
-          <td class="listed">${fmt(s.listedShares)}주</td>
-          <td class="cap">${fmt(marketCap)}원</td>
-          <td><button class="trade-btn" data-id="${c.id}">거래</button></td>
-        </tr>
-        <tr class="stock-sub-row" data-id="${c.id}">
-          <td colspan="5">
-            <div class="sub-row-inner">
-              <span class="spark-wrap">${sparklineSVG(c.id)}</span>
-              <span class="chg ${chgCls}">${chgText}</span>
-              <span class="chg-label">당일 시가 대비</span>
-            </div>
-          </td>
-        </tr>`;
+let sortMode = "sector"; // sector | price | name
+let pinOwned = false;
+
+function isOwnedId(id) {
+  const holdings = currentUserData.holdings || {};
+  return normalizeHolding(holdings[id]).qty > 0;
+}
+
+function getSortedCompanies(mode) {
+  const list = ALL_COMPANIES.slice();
+  if (mode === "price") {
+    list.sort((a, b) => {
+      const pa = currentStocks[a.id] ? currentStocks[a.id].price : 0;
+      const pb = currentStocks[b.id] ? currentStocks[b.id].price : 0;
+      return pb - pa; // 높은 가격 순
     });
-  });
+  } else if (mode === "name") {
+    list.sort((a, b) => a.name.localeCompare(b.name, "ko"));
+  } else {
+    const sectorOrder = Object.keys(SECTORS);
+    list.sort((a, b) => sectorOrder.indexOf(a.sector) - sectorOrder.indexOf(b.sector));
+  }
+  return list;
+}
+
+function stockRowHTML(c) {
+  const s = currentStocks[c.id];
+  if (!s) return "";
+  const cls = priceChangeClass(c.id);
+  const marketCap = s.price * s.listedShares;
+  const chg = changePctOf(c.id);
+  const chgCls = chg == null ? "" : chg > 0 ? "up" : chg < 0 ? "down" : "";
+  const chgText = chg == null ? "-" : `${chg > 0 ? "+" : ""}${chg.toFixed(2)}%`;
+  const ownedCls = isOwnedId(c.id) ? "owned" : "";
+  return `
+    <tr class="stock-row ${ownedCls}" data-id="${c.id}">
+      <td class="name">${s.name}</td>
+      <td class="price ${cls}">${fmt(s.price)}원</td>
+      <td class="listed">${fmt(s.listedShares)}주</td>
+      <td class="cap">${fmt(marketCap)}원</td>
+      <td><button class="trade-btn" data-id="${c.id}">거래</button></td>
+    </tr>
+    <tr class="stock-sub-row" data-id="${c.id}">
+      <td colspan="5">
+        <div class="sub-row-inner">
+          <span class="spark-wrap">${sparklineSVG(c.id)}</span>
+          <span class="chg ${chgCls}">${chgText}</span>
+          <span class="chg-label">당일 시가 대비</span>
+        </div>
+      </td>
+    </tr>`;
+}
+
+function renderMarket() {
+  let list = getSortedCompanies(sortMode);
+  let html = "";
+
+  let pinnedList = [];
+  if (pinOwned) {
+    pinnedList = list.filter(c => isOwnedId(c.id));
+    list = list.filter(c => !isOwnedId(c.id));
+  }
+
+  if (pinnedList.length > 0) {
+    html += `<tr class="pin-header-row"><td colspan="5">📌 보유 종목</td></tr>`;
+    pinnedList.forEach(c => { html += stockRowHTML(c); });
+    html += `<tr class="section-divider-row"><td colspan="5"></td></tr>`;
+  }
+
+  if (sortMode === "sector") {
+    let curSector = null;
+    list.forEach(c => {
+      if (c.sector !== curSector) {
+        curSector = c.sector;
+        html += `<tr class="sector-row"><td colspan="5">${SECTOR_LABEL[curSector]}</td></tr>`;
+      }
+      html += stockRowHTML(c);
+    });
+  } else {
+    list.forEach(c => { html += stockRowHTML(c); });
+  }
+
   els.marketBody.innerHTML = html;
 
   els.marketBody.querySelectorAll(".trade-btn").forEach(btn => {
@@ -728,6 +781,16 @@ els.sellBtn.addEventListener("click", async () => {
     return u;
   });
   if (!res.committed) alert("보유 수량이 부족합니다.");
+});
+
+// ---------- 정렬 / 보유종목 상단고정 ----------
+els.sortSelect.addEventListener("change", () => {
+  sortMode = els.sortSelect.value;
+  renderMarket();
+});
+els.pinOwnedToggle.addEventListener("change", () => {
+  pinOwned = els.pinOwnedToggle.checked;
+  renderMarket();
 });
 
 // ---------- 탭 전환 ----------
