@@ -135,6 +135,7 @@ body {
 }
 .col {
   height: 100%;
+  min-height: 0; /* 그리드 아이템 기본값(auto)이 내용만큼 늘어나 내부 스크롤을 막던 문제 수정 */
   overflow-y: auto;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
