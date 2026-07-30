@@ -118,6 +118,32 @@ Object.keys(SECTOR_TEMPLATES).forEach(sec => {
   };
 });
 
+// 트렌드 뉴스 (해당 종목 전 종목에 동일 적용, 1분마다 30% 확률/3분 쿨타임)
+const TREND_TEMPLATES = [
+  { sector: "ent", text: "K-POP 열풍", pct: 10 },
+  { sector: "food", text: "한식 열풍", pct: 10 },
+  { sector: "tech", text: "K-반도체 각광", pct: 10 },
+  { sector: "chem", text: "중국 신소재공장 부도", pct: 10 },
+  { sector: "const", text: "두바이서 빌딩 건설 의뢰 건", pct: 10 },
+  { sector: "bio", text: "한국서 신종 바이러스 백신 개발", pct: 10 }
+];
+
+// ---------- 장세(정세) 시스템: 7시간마다 전환, 유저에게는 숨겨짐 ----------
+const REGIME_INTERVAL = 7 * 60 * 60 * 1000;
+const REGIME_INFO = {
+  boom_big: { label: "대호황", downMultiplier: 0.3, upMultiplier: 1 },   // 하락률 대폭 감소
+  boom: { label: "호황", downMultiplier: 0.7, upMultiplier: 1 },         // 하락률 소폭 감소
+  bust: { label: "불황", downMultiplier: 1, upMultiplier: 0.7 },         // 상승률 소폭 감소
+  bust_big: { label: "대불황", downMultiplier: 1, upMultiplier: 0.3 }    // 상승률 대폭 감소
+};
+function pickRegimeType() {
+  const r = Math.random();
+  if (r < 0.05) return "boom_big";       // 대호황 5%
+  if (r < 0.10) return "bust_big";       // 대불황 5%
+  if (r < 0.55) return "boom";           // 호황 45%
+  return "bust";                          // 불황 45%
+}
+
 const ALL_COMPANIES = Object.keys(SECTORS).flatMap(sec =>
   SECTORS[sec].map(c => ({ ...c, sector: sec }))
 );
@@ -143,6 +169,13 @@ function randomWalkPercent() {
   let r = 0;
   for (let i = 0; i < 3; i++) r += (Math.random() * 2 - 1);
   return r; // 범위 -3 ~ 3, 0 부근 밀도가 더 높음
+}
+
+// 현재 장세(정세)에 따라 상승/하락폭을 보정 (정세 자체는 유저에게 노출하지 않음)
+let regimeCache = { up: 1, down: 1 };
+function adjustForRegime(pct) {
+  if (pct === 0) return 0;
+  return pct > 0 ? pct * regimeCache.up : pct * regimeCache.down;
 }
 
 // ---------- 분산 락 (여러 브라우저가 동시에 열려 있어도 한 번만 실행) ----------
@@ -190,8 +223,13 @@ async function seedMarketIfNeeded() {
     lastPriceUpdate: 0,
     lastNewsEvent: 0,
     lastHistorySample: 0,
+    lastTrendCheck: 0,
+    lastVolumeCheck: 0,
     globalCooldownUntil: 0,
-    tradingDate: todayStrKST()
+    trendCooldownUntil: 0,
+    tradingDate: todayStrKST(),
+    regime: pickRegimeType(),       // 최초 장세는 조용히 설정 (공지 없음)
+    regimeChangedAt: Date.now()
   });
   const dayOpen = {};
   const priceHistory = {};
@@ -226,6 +264,20 @@ async function ensureTradingDay() {
   }
   await db.ref("market/dayOpen").set(dayOpen);
   await db.ref("market/priceHistory").set(priceHistory);
+}
+
+// ---------- 장세(정세) 전환 (7시간마다, 전환된 "후"에만 뉴스로 공지) ----------
+async function ensureRegime() {
+  const now = Date.now();
+  const res = await db.ref("market/meta/regimeChangedAt").transaction(current => {
+    if (current && now - current < REGIME_INTERVAL) return; // 아직 7시간 안 지남 -> 중단
+    return now;
+  });
+  if (!res.committed) return; // 이번엔 이 브라우저 담당이 아님
+  const newType = pickRegimeType();
+  await db.ref("market/meta/regime").set(newType);
+  const label = REGIME_INFO[newType].label;
+  await pushNews(`📰 [시황] 시장 분위기가 전환되었습니다 — 지금부터는 "${label}" 국면입니다`);
 }
 
 // ---------- 당일 그래프용 시세 샘플링 (1분마다 저장, 최대 HISTORY_MAX_POINTS개 유지) ----------
@@ -272,7 +324,8 @@ async function applyEventToStock(id, basePct) {
   let effectiveAbs = Math.abs(basePct);
   if (streakCount === 2) effectiveAbs = Math.max(effectiveAbs, STREAK_STEP2_PCT);
   if (streakCount >= STREAK_MAX) effectiveAbs = STREAK_CAP_PCT;
-  const effectivePct = dir === "up" ? effectiveAbs : -effectiveAbs;
+  const rawPct = dir === "up" ? effectiveAbs : -effectiveAbs;
+  const effectivePct = adjustForRegime(rawPct); // 현재 장세(정세)에 따라 최종 보정
 
   const ref = db.ref("market/stocks/" + id);
   await ref.transaction(s => {
@@ -312,7 +365,7 @@ async function tickPriceUpdate() {
   const updates = {};
   for (const id in stocks) {
     const s = stocks[id];
-    const pct = randomWalkPercent();
+    const pct = adjustForRegime(randomWalkPercent());
     const newPrice = Math.max(1, Math.round(s.price * (1 + pct / 100)));
     updates[id + "/price"] = newPrice;
     if (newPrice > LISTED_SHARES_PRICE_TRIGGER && s.listedShares < LISTED_SHARES_UPGRADE) {
@@ -356,13 +409,14 @@ async function fireGlobalEvent() {
   if (Math.random() >= 0.3) return;
 
   const tmpl = pick(GLOBAL_TEMPLATES);
+  const adjPct = adjustForRegime(tmpl.pct);
   const snap = await db.ref("market/stocks").once("value");
   const stocks = snap.val();
   if (!stocks) return;
   const updates = {};
   for (const id in stocks) {
     const s = stocks[id];
-    const newPrice = Math.max(1, Math.round(s.price * (1 + tmpl.pct / 100)));
+    const newPrice = Math.max(1, Math.round(s.price * (1 + adjPct / 100)));
     updates[id + "/price"] = newPrice;
     if (newPrice > LISTED_SHARES_PRICE_TRIGGER && s.listedShares < LISTED_SHARES_UPGRADE) {
       updates[id + "/listedShares"] = LISTED_SHARES_UPGRADE;
@@ -370,7 +424,89 @@ async function fireGlobalEvent() {
   }
   await db.ref("market/stocks").update(updates);
   await db.ref("market/meta/globalCooldownUntil").set(Date.now() + 5 * 60000);
-  await pushNews(`🌍 [글로벌] ${tmpl.text} (전체 ${tmpl.pct > 0 ? "+" : ""}${tmpl.pct}%)`);
+  await pushNews(`🌍 [글로벌] ${tmpl.text} (전체 ${adjPct > 0 ? "+" : ""}${adjPct.toFixed(1)}%)`);
+}
+
+// ---------- 트렌드 뉴스 (해당 종목 전 종목에 동일 적용, 1분마다 30% 확률, 3분 쿨타임) ----------
+async function fireTrendEvent() {
+  const tmpl = pick(TREND_TEMPLATES);
+  const adjPct = adjustForRegime(tmpl.pct);
+  const companies = SECTORS[tmpl.sector];
+  for (const c of companies) {
+    await db.ref("market/stocks/" + c.id).transaction(s => {
+      if (!s) return s;
+      s.price = Math.max(1, Math.round(s.price * (1 + adjPct / 100)));
+      if (s.price > LISTED_SHARES_PRICE_TRIGGER && s.listedShares < LISTED_SHARES_UPGRADE) {
+        s.listedShares = LISTED_SHARES_UPGRADE;
+      }
+      return s;
+    });
+  }
+  await pushNews(`🔥 [트렌드] ${tmpl.text} (${SECTOR_LABEL[tmpl.sector]} 전종목 ${adjPct > 0 ? "+" : ""}${adjPct.toFixed(1)}%)`);
+}
+
+async function tickTrendEvent() {
+  if (!isMarketOpen()) return;
+  const ok = await claim("market/meta/lastTrendCheck", 60000);
+  if (!ok) return;
+  const cdSnap = await db.ref("market/meta/trendCooldownUntil").once("value");
+  const cooldownUntil = cdSnap.val() || 0;
+  if (Date.now() < cooldownUntil) return;
+  if (Math.random() >= 0.3) return;
+  await fireTrendEvent();
+  await db.ref("market/meta/trendCooldownUntil").set(Date.now() + 3 * 60000);
+}
+
+// ---------- 거래량(매수/매도) 기반 가격 충격 ----------
+// 같은 종목에 10분 내 매수량 100주 이상이 몰리면 +7%, 매도량 100주 이상이면 -7%
+const VOLUME_WINDOW_MS = 10 * 60 * 1000;
+const VOLUME_THRESHOLD = 100;
+const VOLUME_IMPACT_PCT = 7;
+
+async function recordTradeVolume(id, side, qty) {
+  const field = side === "buy" ? "buyQty" : "sellQty";
+  await db.ref("market/volume/" + id).transaction(v => {
+    const now = Date.now();
+    if (!v || now - (v.windowStart || 0) > VOLUME_WINDOW_MS) {
+      v = { buyQty: 0, sellQty: 0, windowStart: now };
+    }
+    v[field] = (v[field] || 0) + qty;
+    return v;
+  });
+}
+
+async function tickVolumeImpact() {
+  const ok = await claim("market/meta/lastVolumeCheck", 3000);
+  if (!ok) return;
+  const snap = await db.ref("market/volume").once("value");
+  const volumes = snap.val() || {};
+  for (const id in volumes) {
+    const v = volumes[id];
+    if (!v) continue;
+    if ((v.buyQty || 0) >= VOLUME_THRESHOLD) {
+      await applyVolumeImpact(id, VOLUME_IMPACT_PCT, "매수세 급증");
+      await db.ref("market/volume/" + id).update({ buyQty: 0 });
+    } else if ((v.sellQty || 0) >= VOLUME_THRESHOLD) {
+      await applyVolumeImpact(id, -VOLUME_IMPACT_PCT, "매도세 급증");
+      await db.ref("market/volume/" + id).update({ sellQty: 0 });
+    }
+  }
+}
+
+async function applyVolumeImpact(id, basePct, label) {
+  const adjPct = adjustForRegime(basePct);
+  const ref = db.ref("market/stocks/" + id);
+  await ref.transaction(s => {
+    if (!s) return s;
+    s.price = Math.max(1, Math.round(s.price * (1 + adjPct / 100)));
+    if (s.price > LISTED_SHARES_PRICE_TRIGGER && s.listedShares < LISTED_SHARES_UPGRADE) {
+      s.listedShares = LISTED_SHARES_UPGRADE;
+    }
+    return s;
+  });
+  const snap = await ref.once("value");
+  const name = snap.val() ? snap.val().name : "";
+  await pushNews(`📊 [거래량] ${name} ${label} (${adjPct > 0 ? "+" : ""}${adjPct.toFixed(1)}%)`);
 }
 
 // ---------- 뉴스 통합 디스패처 (3초마다 하나씩) ----------
@@ -393,9 +529,12 @@ async function tickNewsEvent() {
 function startMarketLoop() {
   setInterval(() => {
     ensureTradingDay();
+    ensureRegime();
     tickPriceUpdate();
     tickHistorySample();
     tickNewsEvent();
+    tickTrendEvent();
+    tickVolumeImpact();
   }, 1000);
 }
 
@@ -498,6 +637,7 @@ auth.onAuthStateChanged(async user => {
   listenMarket();
   listenDayOpen();
   listenPriceHistory();
+  listenRegime();
   listenUser();
   listenUsers();
   listenNews();
@@ -535,6 +675,14 @@ function listenDayOpen() {
   });
 }
 
+// 장세(정세)는 화면에 표시하지 않고, 등락률 보정 계산에만 내부적으로 사용
+function listenRegime() {
+  db.ref("market/meta/regime").on("value", snap => {
+    const info = REGIME_INFO[snap.val()];
+    regimeCache = info ? { up: info.upMultiplier, down: info.downMultiplier } : { up: 1, down: 1 };
+  });
+}
+
 // 당일 시장 시작(09:00) 이후 쌓인 시세 기록 - 모든 유저가 같은 그래프를 봄
 function listenPriceHistory() {
   db.ref("market/priceHistory").on("value", snap => {
@@ -564,7 +712,7 @@ function listenUsers() {
 }
 
 function listenNews() {
-  db.ref("news").orderByChild("time").limitToLast(150).on("value", snap => {
+  db.ref("news").orderByChild("time").limitToLast(50).on("value", snap => {
     const items = [];
     snap.forEach(child => items.push(child.val()));
     items.reverse();
@@ -833,7 +981,11 @@ els.buyBtn.addEventListener("click", async () => {
     u.holdings[selectedStockId] = { qty: newQty, avgPrice: newAvgPrice };
     return u;
   });
-  if (!res.committed) alert("현금이 부족합니다.");
+  if (!res.committed) {
+    alert("현금이 부족합니다.");
+  } else {
+    recordTradeVolume(selectedStockId, "buy", qty);
+  }
 });
 
 els.sellBtn.addEventListener("click", async () => {
@@ -854,7 +1006,11 @@ els.sellBtn.addEventListener("click", async () => {
       : { qty: 0, avgPrice: 0 };
     return u;
   });
-  if (!res.committed) alert("보유 수량이 부족합니다.");
+  if (!res.committed) {
+    alert("보유 수량이 부족합니다.");
+  } else {
+    recordTradeVolume(selectedStockId, "sell", qty);
+  }
 });
 
 // ---------- 정렬 / 보유종목 상단고정 ----------
