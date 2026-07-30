@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>모의증권 · 가상 주식투자 거래소</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- 로그인 모달 -->
+  <div id="login-modal" class="modal-overlay hidden">
+    <div class="modal login-card">
+      <div class="login-eyebrow">MOCK EXCHANGE</div>
+      <h1>모의증권</h1>
+      <p class="login-desc">가상 자본 500,000원으로 시작하는 실시간 모의투자</p>
+      <input id="nickname-input" type="text" placeholder="닉네임을 입력하세요" maxlength="12" />
+      <button id="login-btn">모의투자 시작하기</button>
+    </div>
+  </div>
+
+  <!-- 상단 티커 -->
+  <div class="ticker-wrap">
+    <div id="ticker" class="ticker"></div>
+  </div>
+
+  <header class="app-header">
+    <div class="brand">
+      <span class="brand-mark">◆</span>
+      <span class="brand-name">모의증권</span>
+    </div>
+    <div id="market-status" class="market-status"></div>
+    <div class="account-box">
+      <div class="account-item">
+        <span class="label">투자자</span>
+        <span id="nickname" class="value">-</span>
+      </div>
+      <div class="account-item">
+        <span class="label">현금</span>
+        <span id="cash" class="value">-</span>
+      </div>
+      <div class="account-item highlight">
+        <span class="label">총자산</span>
+        <span id="total-assets" class="value">-</span>
+      </div>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab-btn active" data-tab="market">시장</button>
+    <button class="tab-btn" data-tab="portfolio">내 보유종목</button>
+    <button class="tab-btn" data-tab="news">뉴스</button>
+    <button class="tab-btn" data-tab="rank">랭킹</button>
+  </nav>
+
+  <main class="content">
+
+    <section id="tab-market" class="tab-panel active">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>종목명</th>
+            <th>현재가</th>
+            <th>상장주식수</th>
+            <th>시가총액</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="market-body"></tbody>
+      </table>
+    </section>
+
+    <section id="tab-portfolio" class="tab-panel">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>종목명</th>
+            <th>수량</th>
+            <th>현재가</th>
+            <th>평가금액</th>
+          </tr>
+        </thead>
+        <tbody id="portfolio-body"></tbody>
+      </table>
+    </section>
+
+    <section id="tab-news" class="tab-panel">
+      <ul id="news-list" class="news-list"></ul>
+    </section>
+
+    <section id="tab-rank" class="tab-panel">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>순위</th>
+            <th>투자자</th>
+            <th>총자산</th>
+          </tr>
+        </thead>
+        <tbody id="rank-body"></tbody>
+      </table>
+    </section>
+
+  </main>
+
+  <!-- 거래 모달 -->
+  <div id="trade-modal" class="modal-overlay hidden">
+    <div class="modal trade-card">
+      <button id="close-trade-btn" class="close-btn">×</button>
+      <h2 id="trade-stock-name">-</h2>
+      <div class="trade-row"><span class="label">현재가</span><span id="trade-price">-</span></div>
+      <div class="trade-row"><span class="label">보유수량</span><span id="trade-owned">-</span></div>
+      <div class="trade-row">
+        <span class="label">수량</span>
+        <input id="trade-qty" type="number" min="1" value="1" />
+      </div>
+      <div class="trade-row total"><span class="label">합계</span><span id="trade-total">-</span></div>
+      <div class="trade-actions">
+        <button id="buy-btn" class="buy-btn">매수</button>
+        <button id="sell-btn" class="sell-btn">매도</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Firebase SDK (compat) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+  <script src="firebase-config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
