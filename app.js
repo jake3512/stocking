@@ -153,8 +153,8 @@ async function trimNews() {
   const snap = await db.ref("news").orderByChild("time").once("value");
   const keys = [];
   snap.forEach(child => keys.push(child.key));
-  if (keys.length > 200) {
-    const toRemove = keys.slice(0, keys.length - 200);
+  if (keys.length > 500) {
+    const toRemove = keys.slice(0, keys.length - 500);
     const updates = {};
     toRemove.forEach(k => (updates[k] = null));
     db.ref("news").update(updates);
@@ -425,9 +425,14 @@ function listenMarket() {
     prevPrices = currentStocks;
     currentStocks = stocks;
     for (const id in stocks) {
-      const arr = priceHistoryLocal[id] || (priceHistoryLocal[id] = []);
-      arr.push(stocks[id].price);
-      if (arr.length > MAX_HISTORY) arr.shift();
+      if (!priceHistoryLocal[id]) {
+        // 처음 보는 종목은 현재가로 평평한 기준선을 만들어 그래프가 바로 보이게 함
+        priceHistoryLocal[id] = [stocks[id].price, stocks[id].price];
+      } else {
+        const arr = priceHistoryLocal[id];
+        arr.push(stocks[id].price);
+        if (arr.length > MAX_HISTORY) arr.shift();
+      }
     }
     renderMarket();
     renderPortfolio();
@@ -462,7 +467,7 @@ function listenUsers() {
 }
 
 function listenNews() {
-  db.ref("news").orderByChild("time").limitToLast(40).on("value", snap => {
+  db.ref("news").orderByChild("time").limitToLast(150).on("value", snap => {
     const items = [];
     snap.forEach(child => items.push(child.val()));
     items.reverse();
@@ -559,24 +564,25 @@ function renderPortfolio() {
     .map(id => ({ id, h: normalizeHolding(holdings[id]) }))
     .filter(e => e.h.qty > 0);
   if (entries.length === 0) {
-    els.portfolioBody.innerHTML = `<tr><td colspan="6" class="empty">보유 종목이 없습니다.</td></tr>`;
+    els.portfolioBody.innerHTML = `<tr><td colspan="4" class="empty">보유 종목이 없습니다.</td></tr>`;
     return;
   }
   let html = "";
   entries.forEach(({ id, h }) => {
     const s = currentStocks[id];
     if (!s) return;
-    const value = s.price * h.qty;
-    const returnPct = h.avgPrice > 0 ? ((s.price - h.avgPrice) / h.avgPrice) * 100 : 0;
-    const cls = returnPct > 0 ? "up" : returnPct < 0 ? "down" : "";
+    const hasAvg = h.avgPrice > 0;
+    const returnPct = hasAvg ? ((s.price - h.avgPrice) / h.avgPrice) * 100 : null;
+    const cls = returnPct == null ? "" : returnPct > 0 ? "up" : returnPct < 0 ? "down" : "";
+    const returnText = returnPct == null
+      ? "-"
+      : `${returnPct > 0 ? "+" : ""}${returnPct.toFixed(2)}%`;
     html += `
       <tr>
         <td>${s.name}</td>
         <td>${fmt(h.qty)}주</td>
-        <td>${fmt(h.avgPrice)}원</td>
-        <td>${fmt(s.price)}원</td>
-        <td>${fmt(value)}원</td>
-        <td class="${cls}">${returnPct > 0 ? "+" : ""}${returnPct.toFixed(2)}%</td>
+        <td>${hasAvg ? fmt(h.avgPrice) + "원" : "-"}</td>
+        <td class="${cls}">${returnText}</td>
       </tr>`;
   });
   els.portfolioBody.innerHTML = html;
