@@ -14,12 +14,15 @@
 
 * { box-sizing: border-box; }
 
+html, body { height: 100%; }
 body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
   font-family: 'Noto Sans KR', sans-serif;
-  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* 페이지 전체는 스크롤되지 않고, 가운데 컬럼만 내부 스크롤 */
 }
 
 .hidden { display: none !important; }
@@ -99,50 +102,116 @@ body {
 }
 .tab-btn.active { color: var(--text); border-bottom-color: var(--gold); }
 
-.content { padding: 20px 24px 60px; max-width: 1180px; margin: 0 auto; }
-.tab-panel { display: none; }
+.ticker-wrap { flex-shrink: 0; }
+.app-header { flex-shrink: 0; }
+.tabs { flex-shrink: 0; }
+
+.content {
+  flex: 1;
+  min-height: 0; /* flex 자식이 내부 스크롤을 가지려면 필요 */
+  padding: 0;
+  max-width: 1600px;
+  width: 100%;
+  margin: 0 auto;
+}
+.tab-panel { display: none; height: 100%; }
 .tab-panel.active { display: block; }
 
-/* ---------- 대시보드 레이아웃 (시장 + 보유종목/뉴스 동시 표시) ---------- */
+/* 랭킹 탭은 단일 컬럼, 자체 스크롤 */
+#tab-rank.tab-panel.active {
+  height: 100%;
+  overflow-y: auto;
+  padding: 20px 24px 60px;
+}
+
+/* ---------- 대시보드: 1(뉴스) : 2(시장) : 1(보유종목) ---------- */
 .dashboard {
   display: grid;
-  grid-template-columns: 1fr 340px;
-  gap: 20px;
-  align-items: start;
+  grid-template-columns: 1fr 2fr 1fr;
+  height: 100%;
 }
-.dashboard-main { min-width: 0; }
-.dashboard-side {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+.col {
+  height: 100%;
+  overflow-y: auto;
+  padding: 16px 20px;
+}
+.col-news { border-right: 1px solid var(--border); background: var(--surface); }
+.col-portfolio { border-left: 1px solid var(--border); background: var(--surface); }
+.col-market { background: var(--bg); }
+
+.col-title {
   position: sticky;
-  top: 16px;
-}
-.side-panel {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 14px;
-}
-.side-title {
-  margin: 0 0 10px;
+  top: -16px;
+  margin: -16px -20px 12px;
+  padding: 16px 20px 10px;
+  background: inherit;
   font-size: 13px;
   color: var(--muted);
   letter-spacing: 0.03em;
   text-transform: uppercase;
+  z-index: 2;
 }
-.side-scroll {
-  max-height: 340px;
-  overflow-y: auto;
-}
+
 .data-table.compact th, .data-table.compact td {
   padding: 7px 4px;
   font-size: 12px;
 }
 
-@media (max-width: 900px) {
-  .dashboard { grid-template-columns: 1fr; }
-  .dashboard-side { position: static; }
+/* 종목 정렬 / 상단고정 툴바 */
+.market-toolbar {
+  position: sticky;
+  top: -16px;
+  margin: -16px -20px 12px;
+  padding: 14px 20px 10px;
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  z-index: 2;
+  border-bottom: 1px solid var(--border);
+}
+.sort-group { display: flex; align-items: center; gap: 8px; }
+.sort-group label { font-size: 12px; color: var(--muted); }
+.sort-group select {
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 13px;
+  font-family: 'Noto Sans KR', sans-serif;
+}
+.pin-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+}
+.pin-toggle input { accent-color: var(--gold); width: 14px; height: 14px; }
+
+.pin-header-row td {
+  padding: 12px 8px 6px;
+  color: var(--gold);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.05em;
+}
+.section-divider-row td { padding: 4px 0; border-bottom: 1px solid var(--border); }
+.stock-row.owned .name::before { content: "● "; color: var(--gold); font-size: 9px; }
+
+@media (max-width: 1100px) {
+  .dashboard { grid-template-columns: 1fr 1.6fr 1fr; }
+}
+@media (max-width: 800px) {
+  body { overflow: auto; }
+  .content { min-height: auto; }
+  .dashboard { grid-template-columns: 1fr; height: auto; }
+  .col { height: auto; overflow: visible; }
+  .col-title, .market-toolbar { position: static; margin: 0 0 12px; }
 }
 
 /* ---------- 테이블 ---------- */
@@ -320,10 +389,9 @@ body {
 .buy-btn { background: var(--up); color: white; }
 .sell-btn { background: var(--down); color: white; }
 
-/* ---------- 반응형 ---------- */
+/* ---------- 반응형 (작은 화면 헤더) ---------- */
 @media (max-width: 640px) {
   .app-header { flex-direction: column; align-items: flex-start; }
   .account-box { margin-left: 0; width: 100%; justify-content: space-between; }
-  .content { padding: 16px; }
   .data-table { font-size: 12px; }
 }
