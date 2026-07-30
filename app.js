@@ -132,9 +132,9 @@ const TREND_TEMPLATES = [
 const REGIME_INTERVAL = 30 * 60 * 1000;
 const REGIME_INFO = {
   boom_big: { label: "대호황", downMultiplier: 0.5, upMultiplier: 1 },   // 하락률 대폭 감소
-  boom: { label: "호황", downMultiplier: 0.9, upMultiplier: 1 },         // 하락률 소폭 감소
-  bust: { label: "불황", downMultiplier: 1, upMultiplier: 0.9 },         // 상승률 소폭 감소
-  bust_big: { label: "대불황", downMultiplier: 0.9, upMultiplier: 0.7 }    // 상승률 대폭 감소
+  boom: { label: "호황", downMultiplier: 0.95, upMultiplier: 1 },         // 하락률 소폭 감소
+  bust: { label: "불황", downMultiplier: 1, upMultiplier: 0.95 },         // 상승률 소폭 감소
+  bust_big: { label: "대불황", downMultiplier: 1, upMultiplier: 0.8 }    // 상승률 대폭 감소
 };
 function pickRegimeType() {
   const r = Math.random();
