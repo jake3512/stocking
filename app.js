@@ -180,20 +180,26 @@ async function seedMarketIfNeeded() {
     lastCompanyEvent: 0,
     lastSectorEvent: 0,
     lastGlobalCheck: 0,
+    lastHistorySample: 0,
     globalCooldownUntil: 0,
     tradingDate: todayStrKST()
   });
   const dayOpen = {};
-  for (const id in stocks) dayOpen[id] = stocks[id].price;
+  const priceHistory = {};
+  for (const id in stocks) {
+    dayOpen[id] = stocks[id].price;
+    priceHistory[id] = [stocks[id].price]; // 당일 시가로 그래프 시작점 기록
+  }
   await db.ref("market/dayOpen").set(dayOpen);
+  await db.ref("market/priceHistory").set(priceHistory);
 }
 
-// ---------- 당일 시가(증감률 기준) 관리 ----------
+// ---------- 당일 시가(증감률/그래프 기준) 관리 ----------
 function todayStrKST() {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" }).format(new Date());
 }
 
-// 날짜가 바뀌면(장 시작 시점) 그날의 시가를 새로 스냅샷 (여러 브라우저 중 하나만 실행)
+// 날짜가 바뀌면(장 시작 시점) 그날의 시가와 그래프 기록을 새로 시작 (여러 브라우저 중 하나만 실행)
 async function ensureTradingDay() {
   const today = todayStrKST();
   const res = await db.ref("market/meta/tradingDate").transaction(current => {
@@ -204,8 +210,35 @@ async function ensureTradingDay() {
   const snap = await db.ref("market/stocks").once("value");
   const stocks = snap.val() || {};
   const dayOpen = {};
-  for (const id in stocks) dayOpen[id] = stocks[id].price;
+  const priceHistory = {};
+  for (const id in stocks) {
+    dayOpen[id] = stocks[id].price;
+    priceHistory[id] = [stocks[id].price]; // 당일 시가로 그래프 리셋
+  }
   await db.ref("market/dayOpen").set(dayOpen);
+  await db.ref("market/priceHistory").set(priceHistory);
+}
+
+// ---------- 당일 그래프용 시세 샘플링 (1분마다 저장, 최대 HISTORY_MAX_POINTS개 유지) ----------
+const HISTORY_SAMPLE_INTERVAL = 60000; // 1분
+const HISTORY_MAX_POINTS = 1000; // 하루(09:00~23:59)를 1분 간격으로 커버하기 충분한 여유치
+
+async function tickHistorySample() {
+  if (!isMarketOpen()) return;
+  const ok = await claim("market/meta/lastHistorySample", HISTORY_SAMPLE_INTERVAL);
+  if (!ok) return;
+  const snap = await db.ref("market/stocks").once("value");
+  const stocks = snap.val();
+  if (!stocks) return;
+  for (const id in stocks) {
+    const price = stocks[id].price;
+    db.ref("market/priceHistory/" + id).transaction(arr => {
+      arr = arr || [];
+      arr.push(price);
+      if (arr.length > HISTORY_MAX_POINTS) arr = arr.slice(arr.length - HISTORY_MAX_POINTS);
+      return arr;
+    });
+  }
 }
 
 // ---------- 개별 종목에 이벤트 적용 ----------
@@ -297,6 +330,7 @@ function startMarketLoop() {
   setInterval(() => {
     ensureTradingDay();
     tickPriceUpdate();
+    tickHistorySample();
     tickCompanyEvent();
     tickSectorEvent();
     tickGlobalEvent();
@@ -313,8 +347,7 @@ let prevPrices = {};      // 직전 시세 (등락 색상용)
 let currentUserData = { cash: 0, holdings: {} };
 let selectedStockId = null;
 let dayOpenCache = {};    // 당일 시가 (증감률 계산 기준)
-const priceHistoryLocal = {}; // 종목별 최근 가격 배열 (미니 그래프용, 브라우저 세션 한정)
-const MAX_HISTORY = 30;
+let priceHistoryCache = {}; // 종목별 당일 가격 기록 (market/priceHistory, 모든 유저 공유)
 
 // 보유 종목 데이터를 {qty, avgPrice} 형태로 정규화 (예전 숫자 형식도 호환)
 function normalizeHolding(h, fallbackPrice) {
@@ -400,6 +433,7 @@ auth.onAuthStateChanged(async user => {
   startMarketLoop();
   listenMarket();
   listenDayOpen();
+  listenPriceHistory();
   listenUser();
   listenUsers();
   listenNews();
@@ -424,16 +458,6 @@ function listenMarket() {
     const stocks = snap.val() || {};
     prevPrices = currentStocks;
     currentStocks = stocks;
-    for (const id in stocks) {
-      if (!priceHistoryLocal[id]) {
-        // 처음 보는 종목은 현재가로 평평한 기준선을 만들어 그래프가 바로 보이게 함
-        priceHistoryLocal[id] = [stocks[id].price, stocks[id].price];
-      } else {
-        const arr = priceHistoryLocal[id];
-        arr.push(stocks[id].price);
-        if (arr.length > MAX_HISTORY) arr.shift();
-      }
-    }
     renderMarket();
     renderPortfolio();
     renderTradeModal();
@@ -443,6 +467,14 @@ function listenMarket() {
 function listenDayOpen() {
   db.ref("market/dayOpen").on("value", snap => {
     dayOpenCache = snap.val() || {};
+    renderMarket();
+  });
+}
+
+// 당일 시장 시작(09:00) 이후 쌓인 시세 기록 - 모든 유저가 같은 그래프를 봄
+function listenPriceHistory() {
+  db.ref("market/priceHistory").on("value", snap => {
+    priceHistoryCache = snap.val() || {};
     renderMarket();
   });
 }
@@ -491,12 +523,22 @@ function changePctOf(id) {
   return ((cur - open) / open) * 100;
 }
 
-// 최근 시세 흐름을 보여주는 작은 SVG 꺾은선 그래프
+// 당일 시장 시작(09:00) 이후부터 현재까지의 시세 흐름을 보여주는 SVG 꺾은선 그래프
 function sparklineSVG(id) {
-  const hist = priceHistoryLocal[id];
-  if (!hist || hist.length < 2) {
-    return `<span class="spark-empty">수집 중…</span>`;
+  const curPrice = currentStocks[id] ? currentStocks[id].price : null;
+  const stored = priceHistoryCache[id]; // Firebase 배열은 {0:.., 1:..} 객체로 올 수 있어 배열로 변환
+  let hist = Array.isArray(stored) ? stored.slice() : stored ? Object.values(stored) : [];
+
+  if (hist.length === 0) {
+    if (curPrice == null) return `<span class="spark-empty">-</span>`;
+    hist = [curPrice];
   }
+  // 가장 최근 값이 실시간 현재가보다 오래됐으면(최대 1분 지연) 끝에 현재가를 붙여 최신 상태로 보여줌
+  if (curPrice != null && hist[hist.length - 1] !== curPrice) {
+    hist = hist.concat(curPrice);
+  }
+  if (hist.length === 1) hist = [hist[0], hist[0]];
+
   const w = 68, h = 24;
   const min = Math.min(...hist), max = Math.max(...hist);
   const range = (max - min) || 1;
