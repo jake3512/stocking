@@ -268,7 +268,7 @@ async function ensureTradingDay() {
   await db.ref("market/priceHistory").set(priceHistory);
 }
 
-// ---------- 장세(정세) 전환 (7시간마다, 전환된 "후"에만 뉴스로 공지) ----------
+// ---------- 장세(정세) 전환 (7시간마다, 유저에게는 완전히 숨김 - 공지 없음) ----------
 async function ensureRegime() {
   const now = Date.now();
   const res = await db.ref("market/meta/regimeChangedAt").transaction(current => {
@@ -278,8 +278,7 @@ async function ensureRegime() {
   if (!res.committed) return; // 이번엔 이 브라우저 담당이 아님
   const newType = pickRegimeType();
   await db.ref("market/meta/regime").set(newType);
-  const label = REGIME_INFO[newType].label;
-  await pushNews(`📰 [시황] 시장 분위기가 전환되었습니다 — 지금부터는 "${label}" 국면입니다`);
+  // 정세 전환은 유저에게 알리지 않음 (뉴스 공지 없이 조용히 적용)
 }
 
 // ---------- 당일 그래프용 시세 샘플링 (1분마다 저장, 최대 HISTORY_MAX_POINTS개 유지) ----------
@@ -642,6 +641,7 @@ const els = {
   tradeStockName: document.getElementById("trade-stock-name"),
   tradePrice: document.getElementById("trade-price"),
   tradeLimitPrice: document.getElementById("trade-limit-price"),
+  useMarketPriceBtn: document.getElementById("use-market-price-btn"),
   tradeQty: document.getElementById("trade-qty"),
   tradeOwned: document.getElementById("trade-owned"),
   tradeReturnRow: document.getElementById("trade-return-row"),
@@ -1038,6 +1038,12 @@ function openTradeModal(id) {
 els.closeTradeBtn.addEventListener("click", () => els.tradeModal.classList.add("hidden"));
 els.tradeQty.addEventListener("input", renderTradeModal);
 els.tradeLimitPrice.addEventListener("input", renderTradeModal);
+els.useMarketPriceBtn.addEventListener("click", () => {
+  const s = currentStocks[selectedStockId];
+  if (!s) return;
+  els.tradeLimitPrice.value = s.price;
+  renderTradeModal();
+});
 
 const qtyButtons = document.querySelectorAll(".qty-btn");
 qtyButtons.forEach(btn => {
