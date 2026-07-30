@@ -436,6 +436,21 @@ body {
 }
 .trade-row.total { font-weight: 700; font-family: 'IBM Plex Mono', monospace; }
 
+.price-input-group { display: flex; align-items: center; gap: 6px; }
+.price-input-group input { width: 80px; }
+.market-price-btn {
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  color: var(--gold);
+  border-radius: 6px;
+  padding: 7px 8px;
+  font-size: 11px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.market-price-btn:hover { border-color: var(--gold); }
+
+
 .qty-quick { display: flex; gap: 6px; margin: 10px 0; }
 .qty-btn {
   flex: 1;
