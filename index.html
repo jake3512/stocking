@@ -55,7 +55,27 @@
 
     <section id="tab-market" class="tab-panel active">
       <div class="dashboard">
-        <div class="dashboard-main">
+
+        <div class="col col-news">
+          <h3 class="col-title">뉴스 기록</h3>
+          <ul id="news-list" class="news-list"></ul>
+        </div>
+
+        <div class="col col-market">
+          <div class="market-toolbar">
+            <div class="sort-group">
+              <label for="sort-select">정렬</label>
+              <select id="sort-select">
+                <option value="sector">종목종류순</option>
+                <option value="price">가격순</option>
+                <option value="name">가나다순</option>
+              </select>
+            </div>
+            <label class="pin-toggle">
+              <input type="checkbox" id="pin-owned-toggle" />
+              보유 종목 상단 고정
+            </label>
+          </div>
           <table class="data-table">
             <thead>
               <tr>
@@ -70,31 +90,21 @@
           </table>
         </div>
 
-        <aside class="dashboard-side">
-          <div class="side-panel">
-            <h3 class="side-title">내 보유종목</h3>
-            <div class="side-scroll">
-              <table class="data-table compact">
-                <thead>
-                  <tr>
-                    <th>종목</th>
-                    <th>수량</th>
-                    <th>평단가</th>
-                    <th>수익률</th>
-                  </tr>
-                </thead>
-                <tbody id="portfolio-body"></tbody>
-              </table>
-            </div>
-          </div>
+        <div class="col col-portfolio">
+          <h3 class="col-title">내 보유종목</h3>
+          <table class="data-table compact">
+            <thead>
+              <tr>
+                <th>종목</th>
+                <th>수량</th>
+                <th>평단가</th>
+                <th>수익률</th>
+              </tr>
+            </thead>
+            <tbody id="portfolio-body"></tbody>
+          </table>
+        </div>
 
-          <div class="side-panel">
-            <h3 class="side-title">뉴스 기록</h3>
-            <div class="side-scroll">
-              <ul id="news-list" class="news-list"></ul>
-            </div>
-          </div>
-        </aside>
       </div>
     </section>
 
