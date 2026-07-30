@@ -14,34 +14,34 @@ const SECTOR_LABEL = {
 
 const SECTORS = {
   tech: [
-    { id: "tech1", name: "나노테크", cap: 100000000 },
-    { id: "tech2", name: "놀로지아테크", cap: 10000000 },
-    { id: "tech3", name: "티크테크", cap: 1000000 }
+    { id: "tech1", name: "나노테크", cap: 10000000000 },
+    { id: "tech2", name: "놀로지아테크", cap: 1000000000 },
+    { id: "tech3", name: "티크테크", cap: 100000000 }
   ],
   ent: [
-    { id: "ent1", name: "쉬프트엔터", cap: 100000000 },
-    { id: "ent2", name: "컨트롤v엔터", cap: 10000000 },
-    { id: "ent3", name: "/kill엔터", cap: 1000000 }
+    { id: "ent1", name: "쉬프트엔터", cap: 10000000000 },
+    { id: "ent2", name: "컨트롤v엔터", cap: 1000000000 },
+    { id: "ent3", name: "/kill엔터", cap: 100000000 }
   ],
   bio: [
-    { id: "bio1", name: "프로바이오", cap: 100000000 },
-    { id: "bio2", name: "정글바이오", cap: 10000000 },
-    { id: "bio3", name: "바이바이오", cap: 1000000 }
+    { id: "bio1", name: "프로바이오", cap: 10000000000 },
+    { id: "bio2", name: "정글바이오", cap: 1000000000 },
+    { id: "bio3", name: "바이바이오", cap: 100000000 }
   ],
   food: [
-    { id: "food1", name: "시후식품", cap: 100000000 },
-    { id: "food2", name: "sihoomonster식품", cap: 10000000 },
-    { id: "food3", name: "먹고식품", cap: 1000000 }
+    { id: "food1", name: "시후식품", cap: 10000000000 },
+    { id: "food2", name: "sihoomonster식품", cap: 1000000000 },
+    { id: "food3", name: "먹고식품", cap: 100000000 }
   ],
   const: [
-    { id: "const1", name: "랜드마크건설", cap: 100000000 },
-    { id: "const2", name: "레건설", cap: 10000000 },
-    { id: "const3", name: "고건설", cap: 1000000 }
+    { id: "const1", name: "랜드마크건설", cap: 10000000000 },
+    { id: "const2", name: "레건설", cap: 1000000000 },
+    { id: "const3", name: "고건설", cap: 100000000 }
   ],
   chem: [
-    { id: "chem1", name: "우화학", cap: 100000000 },
-    { id: "chem2", name: "기화학", cap: 10000000 },
-    { id: "chem3", name: "오리화학", cap: 1000000 }
+    { id: "chem1", name: "우화학", cap: 10000000000 },
+    { id: "chem2", name: "기화학", cap: 1000000000 },
+    { id: "chem3", name: "오리화학", cap: 100000000 }
   ]
 };
 
