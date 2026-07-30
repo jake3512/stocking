@@ -163,6 +163,57 @@ body {
   font-size: 12px;
 }
 
+.panel-subtitle {
+  margin: 20px 0 10px;
+  font-size: 13px;
+  color: var(--muted);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.orders-list { list-style: none; margin: 0; padding: 0; }
+.orders-list li {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.orders-list .order-info { display: flex; flex-direction: column; gap: 2px; }
+.orders-list .order-side { font-weight: 700; }
+.orders-list .order-side.buy { color: var(--up); }
+.orders-list .order-side.sell { color: var(--down); }
+.orders-list .order-meta { color: var(--muted); font-size: 11px; }
+.orders-list .order-status {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.orders-list .order-status.filled { color: var(--gold); border-color: var(--gold); }
+.cancel-order-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.cancel-order-btn:hover { border-color: var(--down); color: var(--down); }
+
+.order-hint {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+  margin: 4px 0 14px;
+}
+
+
 /* 종목 정렬 / 상단고정 툴바 */
 .market-toolbar {
   position: sticky;
