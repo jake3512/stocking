@@ -99,9 +99,51 @@ body {
 }
 .tab-btn.active { color: var(--text); border-bottom-color: var(--gold); }
 
-.content { padding: 20px 24px 60px; max-width: 900px; margin: 0 auto; }
+.content { padding: 20px 24px 60px; max-width: 1180px; margin: 0 auto; }
 .tab-panel { display: none; }
 .tab-panel.active { display: block; }
+
+/* ---------- 대시보드 레이아웃 (시장 + 보유종목/뉴스 동시 표시) ---------- */
+.dashboard {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 20px;
+  align-items: start;
+}
+.dashboard-main { min-width: 0; }
+.dashboard-side {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: sticky;
+  top: 16px;
+}
+.side-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+}
+.side-title {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: var(--muted);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.side-scroll {
+  max-height: 340px;
+  overflow-y: auto;
+}
+.data-table.compact th, .data-table.compact td {
+  padding: 7px 4px;
+  font-size: 12px;
+}
+
+@media (max-width: 900px) {
+  .dashboard { grid-template-columns: 1fr; }
+  .dashboard-side { position: static; }
+}
 
 /* ---------- 테이블 ---------- */
 .data-table { width: 100%; border-collapse: collapse; font-size: 14px; }
