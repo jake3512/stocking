@@ -76,8 +76,10 @@
           <tr>
             <th>종목명</th>
             <th>수량</th>
+            <th>평단가</th>
             <th>현재가</th>
             <th>평가금액</th>
+            <th>수익률</th>
           </tr>
         </thead>
         <tbody id="portfolio-body"></tbody>
@@ -110,6 +112,9 @@
       <h2 id="trade-stock-name">-</h2>
       <div class="trade-row"><span class="label">현재가</span><span id="trade-price">-</span></div>
       <div class="trade-row"><span class="label">보유수량</span><span id="trade-owned">-</span></div>
+      <div class="trade-row" id="trade-return-row" style="display:none;">
+        <span class="label">수익률</span><span id="trade-return">-</span>
+      </div>
       <div class="trade-row">
         <span class="label">수량</span>
         <input id="trade-qty" type="number" min="1" value="1" />
