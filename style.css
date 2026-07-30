@@ -1,0 +1,262 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700;900&display=swap');
+
+:root {
+  --bg: #0B0E14;
+  --surface: #131722;
+  --surface-alt: #1B2030;
+  --border: #262B3A;
+  --text: #E6E8EB;
+  --muted: #7C8496;
+  --up: #FF4757;
+  --down: #3B82F6;
+  --gold: #F5B942;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Noto Sans KR', sans-serif;
+  min-height: 100vh;
+}
+
+.hidden { display: none !important; }
+
+/* ---------- 상단 티커 ---------- */
+.ticker-wrap {
+  background: var(--surface-alt);
+  border-bottom: 1px solid var(--border);
+  overflow: hidden;
+  white-space: nowrap;
+  padding: 8px 0;
+}
+.ticker {
+  display: inline-block;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px;
+  padding-left: 100%;
+  animation: scroll-left 40s linear infinite;
+}
+.ticker-item { color: var(--muted); }
+.ticker-item.up { color: var(--up); }
+.ticker-item.down { color: var(--down); }
+@keyframes scroll-left {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-100%); }
+}
+
+/* ---------- 헤더 ---------- */
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.brand { display: flex; align-items: center; gap: 8px; font-weight: 900; font-size: 20px; }
+.brand-mark { color: var(--gold); }
+.market-status {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  color: var(--muted);
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+.market-status.open { color: var(--up); border-color: var(--up); }
+.market-status.closed { color: var(--muted); }
+
+.account-box {
+  margin-left: auto;
+  display: flex;
+  gap: 24px;
+}
+.account-item { display: flex; flex-direction: column; align-items: flex-end; }
+.account-item .label { font-size: 11px; color: var(--muted); }
+.account-item .value { font-family: 'IBM Plex Mono', monospace; font-weight: 600; font-size: 15px; }
+.account-item.highlight .value { color: var(--gold); font-size: 17px; }
+
+/* ---------- 탭 ---------- */
+.tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--border);
+}
+.tab-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-family: 'Noto Sans KR', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 12px 18px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+.tab-btn.active { color: var(--text); border-bottom-color: var(--gold); }
+
+.content { padding: 20px 24px 60px; max-width: 900px; margin: 0 auto; }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* ---------- 테이블 ---------- */
+.data-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.data-table th {
+  text-align: left;
+  color: var(--muted);
+  font-weight: 500;
+  font-size: 12px;
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.data-table td { padding: 10px 8px; border-bottom: 1px solid var(--border); }
+.sector-row td {
+  background: var(--surface-alt);
+  color: var(--gold);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.05em;
+}
+.stock-row:hover { background: var(--surface); }
+.data-table .name { font-weight: 600; }
+.data-table .price, .data-table .listed, .data-table .cap {
+  font-family: 'IBM Plex Mono', monospace;
+}
+.price.up { color: var(--up); }
+.price.down { color: var(--down); }
+
+.trade-btn {
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.trade-btn:hover { border-color: var(--gold); color: var(--gold); }
+
+.empty { color: var(--muted); text-align: center; padding: 30px 0 !important; }
+
+/* ---------- 뉴스 ---------- */
+.news-list { list-style: none; margin: 0; padding: 0; }
+.news-list li {
+  padding: 10px 4px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.news-time {
+  font-family: 'IBM Plex Mono', monospace;
+  color: var(--muted);
+  margin-right: 8px;
+}
+
+/* ---------- 랭킹 ---------- */
+#rank-body tr.me { background: rgba(245,185,66,0.1); }
+#rank-body tr.me td:nth-child(2) { color: var(--gold); font-weight: 700; }
+
+/* ---------- 모달 공통 ---------- */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 28px;
+  width: 320px;
+  position: relative;
+}
+
+/* 로그인 카드 */
+.login-card { text-align: center; }
+.login-eyebrow {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  color: var(--gold);
+}
+.login-card h1 { margin: 8px 0 4px; font-size: 26px; }
+.login-desc { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+#nickname-input {
+  width: 100%;
+  padding: 12px;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+#login-btn {
+  width: 100%;
+  padding: 12px;
+  background: var(--gold);
+  border: none;
+  border-radius: 8px;
+  font-weight: 700;
+  cursor: pointer;
+  font-size: 14px;
+}
+#login-btn:disabled { opacity: 0.6; }
+
+/* 거래 카드 */
+.trade-card h2 { margin-top: 0; }
+.close-btn {
+  position: absolute;
+  top: 16px; right: 16px;
+  background: none; border: none;
+  color: var(--muted);
+  font-size: 20px;
+  cursor: pointer;
+}
+.trade-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+}
+.trade-row .label { color: var(--muted); }
+.trade-row input {
+  width: 90px;
+  text-align: right;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-family: 'IBM Plex Mono', monospace;
+}
+.trade-row.total { font-weight: 700; font-family: 'IBM Plex Mono', monospace; }
+.trade-actions { display: flex; gap: 10px; margin-top: 16px; }
+.buy-btn, .sell-btn {
+  flex: 1;
+  padding: 12px;
+  border: none;
+  border-radius: 8px;
+  font-weight: 700;
+  cursor: pointer;
+  font-size: 14px;
+}
+.buy-btn { background: var(--up); color: white; }
+.sell-btn { background: var(--down); color: white; }
+
+/* ---------- 반응형 ---------- */
+@media (max-width: 640px) {
+  .app-header { flex-direction: column; align-items: flex-start; }
+  .account-box { margin-left: 0; width: 100%; justify-content: space-between; }
+  .content { padding: 16px; }
+  .data-table { font-size: 12px; }
+}
