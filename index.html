@@ -81,7 +81,7 @@
               <tr>
                 <th>종목명</th>
                 <th>현재가</th>
-                <th>상장주식수</th>
+                <th class="col-listed">상장주식수</th>
                 <th>시가총액</th>
                 <th></th>
               </tr>
@@ -136,6 +136,13 @@
       <div class="trade-row">
         <span class="label">수량</span>
         <input id="trade-qty" type="number" min="1" value="1" />
+      </div>
+      <div class="qty-quick">
+        <button type="button" class="qty-btn" data-qty="1">1</button>
+        <button type="button" class="qty-btn" data-qty="5">5</button>
+        <button type="button" class="qty-btn" data-qty="10">10</button>
+        <button type="button" class="qty-btn" data-qty="50">50</button>
+        <button type="button" class="qty-btn" data-qty="100">100</button>
       </div>
       <div class="trade-row total"><span class="label">합계</span><span id="trade-total">-</span></div>
       <div class="trade-actions">
