@@ -129,6 +129,31 @@ body {
 .price.up { color: var(--up); }
 .price.down { color: var(--down); }
 
+/* 범용 상승/하락 색상 (증감률, 수익률 등에서 재사용) */
+.up { color: var(--up); }
+.down { color: var(--down); }
+
+/* 종목 밑에 붙는 미니 그래프 + 증감률 줄 */
+.stock-sub-row td {
+  padding: 2px 8px 12px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+.sub-row-inner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.spark-wrap { display: inline-flex; align-items: center; height: 24px; }
+.spark-empty { font-size: 11px; color: var(--muted); }
+.chg {
+  font-family: 'IBM Plex Mono', monospace;
+  font-weight: 600;
+  font-size: 13px;
+  min-width: 64px;
+}
+.chg-label { font-size: 11px; color: var(--muted); }
+
 .trade-btn {
   background: var(--surface-alt);
   border: 1px solid var(--border);
