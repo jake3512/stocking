@@ -513,7 +513,7 @@ async function applyVolumeImpact(id, basePct, label) {
 
 // ---------- 예약주문(지정가 매수/매도) 체결 엔진 ----------
 // 주문을 넣은 시점 이후 가격이 4번 바뀌기 전까지는 체결 비교를 시작하지 않음
-const ORDER_DELAY_TICKS = 4;
+const ORDER_DELAY_TICKS = 2;
 
 async function tryFillOrder(uid, orderId, order, currentPrice) {
   const ref = db.ref("users/" + uid);
