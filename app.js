@@ -513,7 +513,7 @@ async function applyVolumeImpact(id, basePct, label) {
 
 // ---------- 예약주문(지정가 매수/매도) 체결 엔진 ----------
 // 주문을 넣은 시점 이후 가격이 4번 바뀌기 전까지는 체결 비교를 시작하지 않음
-const ORDER_DELAY_TICKS = 2;
+const ORDER_DELAY_TICKS = 4;
 
 async function tryFillOrder(uid, orderId, order, currentPrice) {
   const ref = db.ref("users/" + uid);
@@ -557,6 +557,7 @@ async function tickOrders() {
   const users = usersSnap.val() || {};
   const stocks = stocksSnap.val() || {};
   const currentTick = tickSnap.val() || 0;
+  const now = Date.now();
 
   for (const uid in users) {
     const orders = users[uid].orders;
@@ -564,12 +565,19 @@ async function tickOrders() {
     for (const orderId in orders) {
       const order = orders[orderId];
       if (!order || order.status !== "pending") continue;
-      if (currentTick - (order.createdTickCount || 0) < ORDER_DELAY_TICKS) continue; // 아직 4틱 안 지남
+
+      // 주문 이후 가격이 4번 바뀌었는지 확인 (혹시 장이 오래 멈춰 있어도 20초가 지났으면 안전장치로 체크 시작)
+      const ticksPassed = currentTick - (order.createdTickCount || 0);
+      const timePassed = now - (order.createdAt || 0);
+      if (ticksPassed < ORDER_DELAY_TICKS && timePassed < 20000) continue;
+
       const stock = stocks[order.stockId];
       if (!stock) continue;
       const price = stock.price;
-      const matched = order.side === "buy" ? price <= order.limitPrice : price >= order.limitPrice;
-      if (!matched) continue;
+      // 매수: 예약가가 시장가보다 높거나 같으면 체결 / 매도: 예약가가 시장가보다 낮거나 같으면 체결
+      const matched = order.side === "buy" ? order.limitPrice >= price : order.limitPrice <= price;
+      if (!matched) continue; // 조건 불충족 시 취소하지 않고 대기 상태 유지 -> 다음 체크(3초 뒤)에 다시 시도
+
       await tryFillOrder(uid, orderId, order, price);
     }
   }
