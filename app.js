@@ -140,7 +140,7 @@ function pickRegimeType() {
   const r = Math.random();
   if (r < 0.05) return "boom_big";       // 대호황 5%
   if (r < 0.10) return "bust_big";       // 대불황 5%
-  if (r < 0.55) return "boom";           // 호황 45%
+  if (r < 0.70) return "boom";           // 호황 45%
   return "bust";                          // 불황 45%
 }
 
@@ -225,7 +225,6 @@ async function seedMarketIfNeeded() {
     lastHistorySample: 0,
     lastTrendCheck: 0,
     lastVolumeCheck: 0,
-    lastOrderCheck: 0,
     priceTickCount: 0,
     globalCooldownUntil: 0,
     trendCooldownUntil: 0,
@@ -546,40 +545,37 @@ async function tryFillOrder(uid, orderId, order, currentPrice) {
   if (res.committed) recordTradeVolume(order.stockId, order.side, order.qty);
 }
 
-async function tickOrders() {
-  const ok = await claim("market/meta/lastOrderCheck", 3000);
-  if (!ok) return;
-  const [usersSnap, stocksSnap, tickSnap] = await Promise.all([
-    db.ref("users").once("value"),
+// 로그인한 유저가 "자기 자신의" 예약주문만 확인/체결 (다른 유저 계정에는 쓰기 권한이 없음 - 보안규칙상 본인 uid만 쓰기 가능)
+async function tickMyOrders() {
+  if (!currentUid) return;
+  const orders = (currentUserData && currentUserData.orders) || {};
+  const pendingIds = Object.keys(orders).filter(id => orders[id] && orders[id].status === "pending");
+  if (pendingIds.length === 0) return;
+
+  const [stocksSnap, tickSnap] = await Promise.all([
     db.ref("market/stocks").once("value"),
     db.ref("market/meta/priceTickCount").once("value")
   ]);
-  const users = usersSnap.val() || {};
   const stocks = stocksSnap.val() || {};
   const currentTick = tickSnap.val() || 0;
   const now = Date.now();
 
-  for (const uid in users) {
-    const orders = users[uid].orders;
-    if (!orders) continue;
-    for (const orderId in orders) {
-      const order = orders[orderId];
-      if (!order || order.status !== "pending") continue;
+  for (const orderId of pendingIds) {
+    const order = orders[orderId];
 
-      // 주문 이후 가격이 4번 바뀌었는지 확인 (혹시 장이 오래 멈춰 있어도 20초가 지났으면 안전장치로 체크 시작)
-      const ticksPassed = currentTick - (order.createdTickCount || 0);
-      const timePassed = now - (order.createdAt || 0);
-      if (ticksPassed < ORDER_DELAY_TICKS && timePassed < 20000) continue;
+    // 주문 이후 가격이 4번 바뀌었는지 확인 (장이 오래 멈춰 있어도 20초가 지났으면 안전장치로 체크 시작)
+    const ticksPassed = currentTick - (order.createdTickCount || 0);
+    const timePassed = now - (order.createdAt || 0);
+    if (ticksPassed < ORDER_DELAY_TICKS && timePassed < 20000) continue;
 
-      const stock = stocks[order.stockId];
-      if (!stock) continue;
-      const price = stock.price;
-      // 매수: 예약가가 시장가보다 높거나 같으면 체결 / 매도: 예약가가 시장가보다 낮거나 같으면 체결
-      const matched = order.side === "buy" ? order.limitPrice >= price : order.limitPrice <= price;
-      if (!matched) continue; // 조건 불충족 시 취소하지 않고 대기 상태 유지 -> 다음 체크(3초 뒤)에 다시 시도
+    const stock = stocks[order.stockId];
+    if (!stock) continue;
+    const price = stock.price;
+    // 매수: 예약가가 시장가보다 높거나 같으면 체결 / 매도: 예약가가 시장가보다 낮거나 같으면 체결
+    const matched = order.side === "buy" ? order.limitPrice >= price : order.limitPrice <= price;
+    if (!matched) continue; // 조건 불충족 시 대기 상태 유지 -> 다음 체크 때 다시 시도
 
-      await tryFillOrder(uid, orderId, order, price);
-    }
+    await tryFillOrder(currentUid, orderId, order, price);
   }
 }
 
@@ -609,7 +605,6 @@ function startMarketLoop() {
     tickNewsEvent();
     tickTrendEvent();
     tickVolumeImpact();
-    tickOrders();
   }, 1000);
 }
 
@@ -721,6 +716,7 @@ auth.onAuthStateChanged(async user => {
   listenNews();
   setInterval(updateMarketStatus, 1000);
   updateMarketStatus();
+  setInterval(tickMyOrders, 3000);
 });
 
 // 최초 진입 시 이미 로그인 세션 없으면 모달 표시
