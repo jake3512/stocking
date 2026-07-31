@@ -515,67 +515,75 @@ async function applyVolumeImpact(id, basePct, label) {
 const ORDER_DELAY_TICKS = 4;
 
 async function tryFillOrder(uid, orderId, order, currentPrice) {
-  const ref = db.ref("users/" + uid);
-  const res = await ref.transaction(u => {
-    if (!u || !u.orders || !u.orders[orderId] || u.orders[orderId].status !== "pending") return; // 이미 처리됨/없음 -> 중단
-    const ord = u.orders[orderId];
-    if (ord.side === "buy") {
-      const cost = currentPrice * ord.qty;
-      if ((u.cash || 0) < cost) return; // 잔액 부족 -> 대기 유지 (다음 체크 때 재시도)
-      u.cash = (u.cash || 0) - cost;
-      u.holdings = u.holdings || {};
-      const existing = normalizeHolding(u.holdings[ord.stockId], currentPrice);
-      const newQty = existing.qty + ord.qty;
-      const newAvgPrice = Math.round((existing.avgPrice * existing.qty + currentPrice * ord.qty) / newQty);
-      u.holdings[ord.stockId] = { qty: newQty, avgPrice: newAvgPrice };
-    } else {
-      const existing = normalizeHolding(u.holdings && u.holdings[ord.stockId]);
-      if (existing.qty < ord.qty) return; // 보유 부족 -> 대기 유지
-      u.cash = (u.cash || 0) + currentPrice * ord.qty;
-      const remain = existing.qty - ord.qty;
-      u.holdings[ord.stockId] = remain > 0
-        ? { qty: remain, avgPrice: existing.avgPrice }
-        : { qty: 0, avgPrice: 0 };
-    }
-    u.orders[orderId].status = "filled";
-    u.orders[orderId].filledPrice = currentPrice;
-    u.orders[orderId].filledAt = Date.now();
-    return u;
-  });
-  if (res.committed) recordTradeVolume(order.stockId, order.side, order.qty);
+  try {
+    const ref = db.ref("users/" + uid);
+    const res = await ref.transaction(u => {
+      if (!u || !u.orders || !u.orders[orderId] || u.orders[orderId].status !== "pending") return; // 이미 처리됨/없음 -> 중단
+      const ord = u.orders[orderId];
+      if (ord.side === "buy") {
+        const cost = currentPrice * ord.qty;
+        if ((u.cash || 0) < cost) return; // 잔액 부족 -> 대기 유지 (다음 체크 때 재시도)
+        u.cash = (u.cash || 0) - cost;
+        u.holdings = u.holdings || {};
+        const existing = normalizeHolding(u.holdings[ord.stockId], currentPrice);
+        const newQty = existing.qty + ord.qty;
+        const newAvgPrice = Math.round((existing.avgPrice * existing.qty + currentPrice * ord.qty) / newQty);
+        u.holdings[ord.stockId] = { qty: newQty, avgPrice: newAvgPrice };
+      } else {
+        const existing = normalizeHolding(u.holdings && u.holdings[ord.stockId]);
+        if (existing.qty < ord.qty) return; // 보유 부족 -> 대기 유지
+        u.cash = (u.cash || 0) + currentPrice * ord.qty;
+        const remain = existing.qty - ord.qty;
+        u.holdings[ord.stockId] = remain > 0
+          ? { qty: remain, avgPrice: existing.avgPrice }
+          : { qty: 0, avgPrice: 0 };
+      }
+      u.orders[orderId].status = "filled";
+      u.orders[orderId].filledPrice = currentPrice;
+      u.orders[orderId].filledAt = Date.now();
+      return u;
+    });
+    if (res.committed) recordTradeVolume(order.stockId, order.side, order.qty);
+  } catch (err) {
+    console.error("주문 체결 실패:", err);
+  }
 }
 
 // 로그인한 유저가 "자기 자신의" 예약주문만 확인/체결 (다른 유저 계정에는 쓰기 권한이 없음 - 보안규칙상 본인 uid만 쓰기 가능)
 async function tickMyOrders() {
   if (!currentUid) return;
-  const orders = (currentUserData && currentUserData.orders) || {};
-  const pendingIds = Object.keys(orders).filter(id => orders[id] && orders[id].status === "pending");
-  if (pendingIds.length === 0) return;
+  try {
+    const orders = (currentUserData && currentUserData.orders) || {};
+    const pendingIds = Object.keys(orders).filter(id => orders[id] && orders[id].status === "pending");
+    if (pendingIds.length === 0) return;
 
-  const [stocksSnap, tickSnap] = await Promise.all([
-    db.ref("market/stocks").once("value"),
-    db.ref("market/meta/priceTickCount").once("value")
-  ]);
-  const stocks = stocksSnap.val() || {};
-  const currentTick = tickSnap.val() || 0;
-  const now = Date.now();
+    const [stocksSnap, tickSnap] = await Promise.all([
+      db.ref("market/stocks").once("value"),
+      db.ref("market/meta/priceTickCount").once("value")
+    ]);
+    const stocks = stocksSnap.val() || {};
+    const currentTick = tickSnap.val() || 0;
+    const now = Date.now();
 
-  for (const orderId of pendingIds) {
-    const order = orders[orderId];
+    for (const orderId of pendingIds) {
+      const order = orders[orderId];
 
-    // 주문 이후 가격이 4번 바뀌었는지 확인 (장이 오래 멈춰 있어도 20초가 지났으면 안전장치로 체크 시작)
-    const ticksPassed = currentTick - (order.createdTickCount || 0);
-    const timePassed = now - (order.createdAt || 0);
-    if (ticksPassed < ORDER_DELAY_TICKS && timePassed < 20000) continue;
+      // 주문 이후 가격이 4번 바뀌었는지 확인 (장이 오래 멈춰 있어도 20초가 지났으면 안전장치로 체크 시작)
+      const ticksPassed = currentTick - (order.createdTickCount || 0);
+      const timePassed = now - (order.createdAt || 0);
+      if (ticksPassed < ORDER_DELAY_TICKS && timePassed < 20000) continue;
 
-    const stock = stocks[order.stockId];
-    if (!stock) continue;
-    const price = stock.price;
-    // 매수: 예약가가 시장가보다 높거나 같으면 체결 / 매도: 예약가가 시장가보다 낮거나 같으면 체결
-    const matched = order.side === "buy" ? order.limitPrice >= price : order.limitPrice <= price;
-    if (!matched) continue; // 조건 불충족 시 대기 상태 유지 -> 다음 체크 때 다시 시도
+      const stock = stocks[order.stockId];
+      if (!stock) continue;
+      const price = stock.price;
+      // 매수: 예약가가 시장가보다 높거나 같으면 체결 / 매도: 예약가가 시장가보다 낮거나 같으면 체결
+      const matched = order.side === "buy" ? order.limitPrice >= price : order.limitPrice <= price;
+      if (!matched) continue; // 조건 불충족 시 대기 상태 유지 -> 다음 체크 때 다시 시도
 
-    await tryFillOrder(currentUid, orderId, order, price);
+      await tryFillOrder(currentUid, orderId, order, price);
+    }
+  } catch (err) {
+    console.error("예약주문 체크 실패:", err);
   }
 }
 
@@ -689,34 +697,39 @@ function doLogin() {
 auth.onAuthStateChanged(async user => {
   if (!user) return;
   currentUid = user.uid;
-  const userRef = db.ref("users/" + currentUid);
-  const snap = await userRef.once("value");
+  try {
+    const userRef = db.ref("users/" + currentUid);
+    const snap = await userRef.once("value");
 
-  if (!snap.exists()) {
-    const pending = localStorage.getItem("pendingNickname");
-    if (!pending) { els.loginModal.classList.remove("hidden"); return; }
-    await userRef.set({
-      nickname: pending,
-      cash: INITIAL_CASH,
-      holdings: {},
-      joinedAt: Date.now()
-    });
-    localStorage.removeItem("pendingNickname");
+    if (!snap.exists()) {
+      const pending = localStorage.getItem("pendingNickname");
+      if (!pending) { els.loginModal.classList.remove("hidden"); return; }
+      await userRef.set({
+        nickname: pending,
+        cash: INITIAL_CASH,
+        holdings: {},
+        joinedAt: Date.now()
+      });
+      localStorage.removeItem("pendingNickname");
+    }
+
+    els.loginModal.classList.add("hidden");
+    await seedMarketIfNeeded();
+    startMarketLoop();
+    listenMarket();
+    listenDayOpen();
+    listenPriceHistory();
+    listenRegime();
+    listenUser();
+    listenUsers();
+    listenNews();
+    setInterval(updateMarketStatus, 1000);
+    updateMarketStatus();
+    setInterval(tickMyOrders, 3000);
+  } catch (err) {
+    console.error("초기화 실패:", err);
+    alert("앱을 불러오는 중 오류가 발생했어요: " + err.message + "\n(Firebase 콘솔의 Authentication - 익명 로그인 활성화 여부, Realtime Database 규칙을 확인해주세요)");
   }
-
-  els.loginModal.classList.add("hidden");
-  await seedMarketIfNeeded();
-  startMarketLoop();
-  listenMarket();
-  listenDayOpen();
-  listenPriceHistory();
-  listenRegime();
-  listenUser();
-  listenUsers();
-  listenNews();
-  setInterval(updateMarketStatus, 1000);
-  updateMarketStatus();
-  setInterval(tickMyOrders, 3000);
 });
 
 // 최초 진입 시 이미 로그인 세션 없으면 모달 표시
@@ -1090,19 +1103,24 @@ async function placeOrder(side) {
   const limitPrice = Math.max(0, parseInt(els.tradeLimitPrice.value) || 0);
   if (qty <= 0 || limitPrice <= 0 || !selectedStockId) return;
 
-  const tickSnap = await db.ref("market/meta/priceTickCount").once("value");
-  const createdTickCount = tickSnap.val() || 0;
-  const orderId = db.ref("users/" + currentUid + "/orders").push().key;
-  await db.ref(`users/${currentUid}/orders/${orderId}`).set({
-    stockId: selectedStockId,
-    side,
-    qty,
-    limitPrice,
-    createdTickCount,
-    createdAt: Date.now(),
-    status: "pending"
-  });
-  els.tradeModal.classList.add("hidden");
+  try {
+    const tickSnap = await db.ref("market/meta/priceTickCount").once("value");
+    const createdTickCount = tickSnap.val() || 0;
+    const orderId = db.ref("users/" + currentUid + "/orders").push().key;
+    await db.ref(`users/${currentUid}/orders/${orderId}`).set({
+      stockId: selectedStockId,
+      side,
+      qty,
+      limitPrice,
+      createdTickCount,
+      createdAt: Date.now(),
+      status: "pending"
+    });
+    els.tradeModal.classList.add("hidden");
+  } catch (err) {
+    console.error("주문 등록 실패:", err);
+    alert("주문 등록에 실패했어요: " + err.message);
+  }
 }
 
 els.buyBtn.addEventListener("click", () => placeOrder("buy"));
